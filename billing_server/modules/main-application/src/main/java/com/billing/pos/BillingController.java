@@ -111,6 +111,11 @@ public class BillingController {
         return ok(readService.itemList(from, to));
     }
 
+    @GetMapping("/gallery")
+    public ResponseDO gallery(@RequestParam(required = false) String item) {
+        return ok(readService.gallery(item));
+    }
+
     @GetMapping("/recent")
     public ResponseDO recentBills() {
         return ok(readService.recentBills());

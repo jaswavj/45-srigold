@@ -30,6 +30,8 @@ export class BillingApiService {
   cancelHold = (id: number) => this.http.post(`/v1/billing/holds/${id}/cancel`, {});
   itemList = (from: string, to: string) =>
     this.http.get(`/v1/billing/item-list?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  gallery = (item?: string) =>
+    this.http.get(`/v1/billing/gallery${item ? `?item=${encodeURIComponent(item)}` : ''}`);
   recentBills = () => this.http.get('/v1/billing/recent');
   monthBills = (year: number, month: number, page = 0, size = 12) =>
     this.http.get(`/v1/billing/month-bills?year=${year}&month=${month}&page=${page}&size=${size}`);

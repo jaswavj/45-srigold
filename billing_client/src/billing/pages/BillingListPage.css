@@ -62,7 +62,7 @@
 
 .gold-list-table {
   width: 100%;
-  min-width: 920px;
+  min-width: 1020px;
   table-layout: auto;
   font-size: 15px;
   color: #111827;
@@ -314,6 +314,13 @@
     color: #111827;
     font-size: 16px;
     margin-top: 6px;
+  }
+
+  .gold-list-card-wt {
+    font-size: 14px;
+    font-weight: 700;
+    color: #374151;
+    margin-top: 2px;
   }
 
   .gold-list-card-cost {

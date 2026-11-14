@@ -13,6 +13,7 @@ export const permIcon = (name: string) => {
   if (n.includes('account')) return 'fas fa-file-alt';
   if (n.includes('admin')) return 'fas fa-cog';
   if (n.includes('stat')) return 'fas fa-chart-pie';
+  if (n.includes('galler')) return 'fas fa-images';
   if (n.includes('customer')) return 'fas fa-wallet';
   if (n.includes('credit')) return 'fas fa-money-check-alt';
   if (n === 'list' || n.includes('list')) return 'fas fa-list';

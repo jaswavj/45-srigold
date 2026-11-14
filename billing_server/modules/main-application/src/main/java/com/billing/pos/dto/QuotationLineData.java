@@ -17,4 +17,5 @@ public class QuotationLineData {
     private String unitName;
     private String image1;
     private String image2;
+    private Double metalWt;
 }

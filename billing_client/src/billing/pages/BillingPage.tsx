@@ -49,6 +49,7 @@ type Line = {
   batchId: number;
   image1: string;
   image2: string;
+  metalWt: number;
 };
 
 type Customer = {
@@ -63,6 +64,10 @@ const api = new BillingApiService();
 const ordersApi = new OrderListApiService();
 const money = (n: number) => (Number.isFinite(n) ? n.toFixed(3) : '0.000');
 const rupee = (n: number) => `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
+const parseWt = (v: string) => {
+  const n = parseFloat(v);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+};
 
 const CafeItemIcon: React.FC = () => (
   <svg className="cafe-item-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -149,8 +154,10 @@ const BillingPage: React.FC = () => {
   const [stock, setStock] = useState<number | null>(null);
   const [draftImage1, setDraftImage1] = useState('');
   const [draftImage2, setDraftImage2] = useState('');
+  const [draftMetalWt, setDraftMetalWt] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const metalWtRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const hitRef = useRef<HTMLButtonElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
@@ -262,6 +269,7 @@ const BillingPage: React.FC = () => {
           batchId: item.batchId,
           image1: item.image1 || '',
           image2: item.image2 || '',
+          metalWt: Number(item.metalWt) || 0,
         })));
         setLineKey(items.length + 1);
         const empty = (v?: string) => (!v || v === '-' ? '' : v);
@@ -434,8 +442,8 @@ const BillingPage: React.FC = () => {
 
   const focusQty = () => {
     requestAnimationFrame(() => {
-      amountRef.current?.focus();
-      amountRef.current?.select();
+      metalWtRef.current?.focus();
+      metalWtRef.current?.select();
     });
   };
 
@@ -602,6 +610,7 @@ const BillingPage: React.FC = () => {
       batchId: p.batchId,
       image1: '',
       image2: '',
+      metalWt: 0,
     };
   };
 
@@ -623,8 +632,9 @@ const BillingPage: React.FC = () => {
     setLines((prev) => {
       if (linesStampRef.current !== stamp) return prev;
       const key = prev.reduce((m, l) => Math.max(m, l.key), 0) + 1;
+      const metalWt = parseWt(draftMetalWt);
       const line: Line = pending && matchesPending(itemName, pending)
-        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2 }
+        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt }
         : {
           key,
           productId: 0,
@@ -643,6 +653,7 @@ const BillingPage: React.FC = () => {
           batchId: 0,
           image1: draftImage1,
           image2: draftImage2,
+          metalWt,
         };
       return [...prev, line];
     });
@@ -655,6 +666,7 @@ const BillingPage: React.FC = () => {
     setStock(null);
     setDraftImage1('');
     setDraftImage2('');
+    setDraftMetalWt('');
     setNameHits([]);
     searchRef.current?.focus();
   };
@@ -774,6 +786,11 @@ const BillingPage: React.FC = () => {
 
   const removeLine = (key: number) => setLines((prev) => prev.filter((l) => l.key !== key));
 
+  const updateLineMetalWt = (key: number, value: string) => {
+    const metalWt = parseWt(value);
+    setLines((prev) => prev.map((line) => (line.key === key ? { ...line, metalWt } : line)));
+  };
+
   const collectProducts = () =>
     lines.map((l) => ({
       id: l.productId,
@@ -786,6 +803,7 @@ const BillingPage: React.FC = () => {
       commission: isCommission ? l.commissionPer : 0,
       image1: l.image1 || '',
       image2: l.image2 || '',
+      metalWt: l.metalWt || 0,
     }));
 
   const payloadBase = () => ({
@@ -1088,6 +1106,7 @@ const BillingPage: React.FC = () => {
       batchId: item.batchId,
       image1: item.image1 || '',
       image2: item.image2 || '',
+      metalWt: Number(item.metalWt) || 0,
     }));
     setLines((prev) => (holdStillCurrent() ? mapped : prev));
     if (!holdStillCurrent()) return;
@@ -1179,6 +1198,7 @@ const BillingPage: React.FC = () => {
           batchId,
           image1: '',
           image2: '',
+          metalWt: Number(item.metalWt) || 0,
         });
       }
       setLines(next);
@@ -1255,6 +1275,7 @@ const BillingPage: React.FC = () => {
     setStock(null);
     setDraftImage1('');
     setDraftImage2('');
+    setDraftMetalWt('');
     setUploadingSlot(null);
     setSaving(false);
     setHolding(false);
@@ -1550,6 +1571,23 @@ const BillingPage: React.FC = () => {
                   </div>
                 )}
               </div>
+              <div className="pos-fg gold-item-wt">
+                <span className="pos-lbl">Metal wt (gram)</span>
+                <input
+                  ref={metalWtRef}
+                  className="pos-inp"
+                  value={draftMetalWt}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onChange={(e) => setDraftMetalWt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    amountRef.current?.focus();
+                    amountRef.current?.select();
+                  }}
+                />
+              </div>
               <div className="pos-fg gold-item-amt">
                 <span className="pos-lbl">Amount</span>
                 <input
@@ -1589,19 +1627,28 @@ const BillingPage: React.FC = () => {
             <table className="pos-table pos-table-lines pos-table-gold">
               <thead>
                 <tr>
-                  <th>#</th><th>Item Name</th><th>Photos</th><th>Amount</th><th></th>
+                  <th>#</th><th>Item Name</th><th>Metal wt (gram)</th><th>Photos</th><th>Amount</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {lines.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="gold-empty">Add item name, photos and amount</td>
+                    <td colSpan={6} className="gold-empty">Add item name, metal wt, photos and amount</td>
                   </tr>
                 )}
                 {lines.map((line, idx) => (
                   <tr key={line.key}>
                     <td>{idx + 1}</td>
                     <td>{line.name}</td>
+                    <td>
+                      <input
+                        className="pos-inp"
+                        value={line.metalWt || ''}
+                        inputMode="decimal"
+                        placeholder="0.000"
+                        onChange={(e) => updateLineMetalWt(line.key, e.target.value)}
+                      />
+                    </td>
                     <td>
                       <div className="pos-img-slots">
                         <ImageSlot
@@ -1637,7 +1684,7 @@ const BillingPage: React.FC = () => {
 
           <div className="gold-line-cards">
             {lines.length === 0 && (
-              <div className="gold-empty-card">Add item name, photos and amount</div>
+              <div className="gold-empty-card">Add item name, metal wt, photos and amount</div>
             )}
             {lines.map((line, idx) => (
               <div key={line.key} className="gold-line-card">
@@ -1660,14 +1707,26 @@ const BillingPage: React.FC = () => {
                       onClear={() => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, image2: '' } : l)))}
                     />
                   </div>
-                  <div className="pos-fg gold-card-amt">
-                    <span className="pos-lbl">Amount</span>
-                    <input
-                      className="pos-inp"
-                      value={line.price}
-                      inputMode="decimal"
-                      onChange={(e) => updateLineQtyPrice(line.key, 1, parseFloat(e.target.value) || 0)}
-                    />
+                  <div className="gold-card-fields">
+                    <div className="pos-fg gold-card-wt">
+                      <span className="pos-lbl">Metal wt (gram)</span>
+                      <input
+                        className="pos-inp"
+                        value={line.metalWt || ''}
+                        inputMode="decimal"
+                        placeholder="0.000"
+                        onChange={(e) => updateLineMetalWt(line.key, e.target.value)}
+                      />
+                    </div>
+                    <div className="pos-fg gold-card-amt">
+                      <span className="pos-lbl">Amount</span>
+                      <input
+                        className="pos-inp"
+                        value={line.price}
+                        inputMode="decimal"
+                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

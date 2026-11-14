@@ -56,6 +56,7 @@ public class PrintBillData {
         private Integer isExchanged;
         private String image1;
         private String image2;
+        private Double metalWt;
     }
 
     @Data

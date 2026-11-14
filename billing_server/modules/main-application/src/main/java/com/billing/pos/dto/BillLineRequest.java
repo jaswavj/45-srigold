@@ -14,4 +14,5 @@ public class BillLineRequest {
     private Double commission;
     private String image1;
     private String image2;
+    private Double metalWt;
 }

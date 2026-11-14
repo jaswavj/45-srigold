@@ -15,6 +15,7 @@ const DefaultAppRedirect = lazy(() =>
 const Dashboard = lazy(() => import('../billing/pages/Dashboard'));
 const BillingPage = lazy(() => import('../billing/pages/BillingPage'));
 const BillingListPage = lazy(() => import('../billing/pages/BillingListPage'));
+const GalleryPage = lazy(() => import('../billing/pages/GalleryPage'));
 const OrderListPage = lazy(() => import('../billing/pages/orders/OrderListPage'));
 const PrintBill = lazy(() => import('../billing/pages/PrintBill'));
 const CategoryPage = lazy(() => import('../billing/pages/master/CategoryPage'));
@@ -102,6 +103,7 @@ const AppRouter = () => {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/list" element={<BillingListPage />} />
+              <Route path="gallery" element={<GalleryPage />} />
               <Route path="billing/print/:billNo" element={<PrintBill />} />
               <Route path="order-list" element={<OrderListPage />} />
               <Route path="master/category" element={<CategoryPage />} />

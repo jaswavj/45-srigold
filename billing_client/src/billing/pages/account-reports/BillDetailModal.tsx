@@ -9,6 +9,7 @@ type Line = {
   name: string;
   price: number;
   total: number;
+  metalWt?: number;
   image1?: string;
   image2?: string;
 };
@@ -29,6 +30,11 @@ type Bill = {
 };
 
 const money = (n?: number | null) => `₹${n2(n || 0)}`;
+const metal = (n?: number | null) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '';
+  return v.toFixed(3);
+};
 
 const Photo: React.FC<{ fileName?: string; onOpen?: () => void }> = ({ fileName, onOpen }) => {
   if (fileName) {
@@ -117,6 +123,7 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                   </div>
                   <div className="gbd-item-info">
                     <div className="gbd-item-name">{line.name || '-'}</div>
+                    {metal(line.metalWt) ? <div className="gbd-item-wt">Metal wt (gram): {metal(line.metalWt)}</div> : null}
                     <div className="gbd-item-amt">{money(line.total ?? line.price)}</div>
                   </div>
                 </div>

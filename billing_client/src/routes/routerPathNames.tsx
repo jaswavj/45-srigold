@@ -3,6 +3,7 @@ export const routerPathNames = {
   dashboard: '/app/dashboard',
   billing: '/app/billing',
   billingList: '/app/billing/list',
+  gallery: '/app/gallery',
   master: {
     category: '/app/master/category',
     brands: '/app/master/brands',

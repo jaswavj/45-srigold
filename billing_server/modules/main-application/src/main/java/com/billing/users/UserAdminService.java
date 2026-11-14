@@ -34,7 +34,7 @@ public class UserAdminService {
     @PostConstruct
     public void syncActiveModules() {
         migrateOldModuleIds();
-        jdbcTemplate.update("DELETE FROM user_permission WHERE module_id NOT IN (1, 2, 3, 4, 5, 6, 7)");
+        jdbcTemplate.update("DELETE FROM user_permission WHERE module_id NOT IN (1, 2, 3, 4, 5, 6, 7, 8)");
         jdbcTemplate.update("DELETE FROM user_modules");
         upsertModule(1, "Billing");
         upsertModule(2, "List");
@@ -43,17 +43,24 @@ public class UserAdminService {
         upsertModule(5, "Customer Details");
         upsertModule(6, "Admin");
         upsertModule(7, "Expense");
+        upsertModule(8, "Gallery");
         jdbcTemplate.update(
                 "INSERT INTO user_permission (uid, module_id, date, time) " +
                         "SELECT p.uid, 2, CURDATE(), CURTIME() FROM user_permission p " +
                         "WHERE p.module_id = 1 AND NOT EXISTS (" +
                         "SELECT 1 FROM user_permission x WHERE x.uid = p.uid AND x.module_id = 2)"
         );
+        jdbcTemplate.update(
+                "INSERT INTO user_permission (uid, module_id, date, time) " +
+                        "SELECT p.uid, 8, CURDATE(), CURTIME() FROM user_permission p " +
+                        "WHERE p.module_id = 6 AND NOT EXISTS (" +
+                        "SELECT 1 FROM user_permission x WHERE x.uid = p.uid AND x.module_id = 8)"
+        );
     }
 
     public List<ModuleData> modules() {
         return jdbcTemplate.query(
-                "SELECT id, module_name FROM user_modules WHERE id BETWEEN 1 AND 7 ORDER BY id",
+                "SELECT id, module_name FROM user_modules WHERE id BETWEEN 1 AND 8 ORDER BY id",
                 (rs, i) -> {
                     ModuleData row = new ModuleData();
                     row.setId(rs.getLong("id"));
@@ -65,15 +72,20 @@ public class UserAdminService {
 
     private void migrateOldModuleIds() {
         Integer extra = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM user_modules WHERE id > 7",
+                "SELECT COUNT(*) FROM user_modules WHERE id > 8",
                 Integer.class
         );
         String name2 = jdbcTemplate.query(
                 "SELECT module_name FROM user_modules WHERE id = 2",
                 rs -> rs.next() ? rs.getString(1) : ""
         );
+        String name8 = jdbcTemplate.query(
+                "SELECT module_name FROM user_modules WHERE id = 8",
+                rs -> rs.next() ? rs.getString(1) : ""
+        );
         boolean oldMaster = name2 != null && "Master".equalsIgnoreCase(name2.trim());
-        if ((extra == null || extra == 0) && !oldMaster) {
+        boolean oldStats = name8 != null && name8.toLowerCase().contains("stat");
+        if ((extra == null || extra == 0) && !oldMaster && !oldStats) {
             return;
         }
         remapModule(1, 101);

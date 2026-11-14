@@ -16,6 +16,7 @@ type ListRow = {
   customerName: string;
   phone: string;
   itemName: string;
+  metalWt: number;
   cost: number;
   image1: string;
   image2: string;
@@ -25,6 +26,11 @@ type ListRow = {
 const today = () => new Date().toISOString().slice(0, 10);
 const api = new BillingApiService();
 const money = (n: number) => `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
+const metal = (n?: number | null) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '-';
+  return v.toFixed(3);
+};
 
 const bothPhotosMissing = (row: ListRow) => !(row.image1 || '').trim() && !(row.image2 || '').trim();
 
@@ -189,6 +195,7 @@ const BillingListPage: React.FC = () => {
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Item name</th>
+                <th>Metal wt (gram)</th>
                 <th>Cost</th>
                 <th>Photo 1</th>
                 <th>Photo 2</th>
@@ -198,7 +205,7 @@ const BillingListPage: React.FC = () => {
             <tbody>
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="gold-list-empty">
+                  <td colSpan={8} className="gold-list-empty">
                     {rows.length === 0 ? 'No bills in this date range' : 'No matching name, phone or item'}
                   </td>
                 </tr>
@@ -208,6 +215,7 @@ const BillingListPage: React.FC = () => {
                   <td>{row.customerName || '-'}</td>
                   <td>{row.phone || '-'}</td>
                   <td>{row.itemName || '-'}</td>
+                  <td>{metal(row.metalWt)}</td>
                   <td>{money(row.cost)}</td>
                   <td><Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} /></td>
                   <td><Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} /></td>
@@ -228,6 +236,7 @@ const BillingListPage: React.FC = () => {
               <div className="gold-list-card-name">{row.customerName || '-'}</div>
               <div className="gold-list-card-meta">{row.phone || '-'}</div>
               <div className="gold-list-card-item">{row.itemName || '-'}</div>
+              <div className="gold-list-card-wt">Metal wt (gram): {metal(row.metalWt)}</div>
               <div className="gold-list-card-cost">{money(row.cost)}</div>
               <div className="gold-list-card-photos">
                 <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />

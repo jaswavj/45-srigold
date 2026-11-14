@@ -18,6 +18,7 @@ export const MENU_MODULE = {
   customerDetails: 5,
   admin: 6,
   expense: 7,
+  gallery: 8,
 } as const;
 
 export const filterMenuByModules = (items: MenuItemConfig[], moduleIds: number[]): MenuItemConfig[] => {
@@ -55,6 +56,7 @@ export const moduleIdForPath = (pathname: string): number | null => {
   if (pathname.includes('/app/dashboard') || pathname.includes('/app/statistics')) return MENU_MODULE.statistics;
   if (pathname.includes('/app/credit')) return MENU_MODULE.customerDetails;
   if (pathname.includes('/app/expense')) return MENU_MODULE.expense;
+  if (pathname.includes('/app/gallery')) return MENU_MODULE.gallery;
   return null;
 };
 
@@ -72,6 +74,13 @@ export const billingMenuConfig: MenuItemConfig[] = [
     icon: 'fas fa-list',
     moduleId: MENU_MODULE.list,
     url: routerPathNames.billingList,
+  },
+  {
+    id: 'gallery',
+    name: 'Gallery',
+    icon: 'fas fa-images',
+    moduleId: MENU_MODULE.gallery,
+    url: routerPathNames.gallery,
   },
   {
     id: 'master',
