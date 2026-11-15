@@ -12,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -28,14 +30,31 @@ public class SriImageService {
     @Value("${app.images-dir:}")
     private String configuredDir;
 
+    private volatile Path cachedDir;
+
     public Path directory() {
-        Path dir = resolveDir();
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not create sri_images folder at " + dir);
+        if (cachedDir != null) {
+            return cachedDir;
         }
-        return dir;
+        synchronized (this) {
+            if (cachedDir != null) {
+                return cachedDir;
+            }
+            List<Path> tried = new ArrayList<>();
+            for (Path candidate : candidates()) {
+                if (candidate == null) {
+                    continue;
+                }
+                Path dir = candidate.toAbsolutePath().normalize();
+                tried.add(dir);
+                if (canWrite(dir)) {
+                    cachedDir = dir;
+                    return dir;
+                }
+            }
+            throw new RuntimeException(writeHint(tried.isEmpty() ? null : tried.get(0),
+                    "sri_images is not writable. Tried: " + tried));
+        }
     }
 
     public String save(MultipartFile file) {
@@ -58,7 +77,7 @@ public class SriImageService {
         try {
             Files.copy(file.getInputStream(), target);
         } catch (IOException e) {
-            throw new RuntimeException("Could not save image");
+            throw new RuntimeException(writeHint(target.getParent(), "Could not save image to " + directory()));
         }
         return fileName;
     }
@@ -94,19 +113,85 @@ public class SriImageService {
         return name;
     }
 
-    private Path resolveDir() {
-        if (configuredDir != null && !configuredDir.isBlank()) {
-            return Path.of(configuredDir.trim()).toAbsolutePath().normalize();
-        }
+    private List<Path> candidates() {
+        List<Path> dirs = new ArrayList<>();
+        add(dirs, configuredDir);
+        add(dirs, System.getenv("SRI_IMAGES_DIR"));
+        add(dirs, System.getenv("APP_IMAGES_DIR"));
+        Path catalinaBase = toPath(System.getProperty("catalina.base"));
+        Path catalinaHome = toPath(System.getProperty("catalina.home"));
         Path cwd = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
-        Path walk = cwd;
-        for (int i = 0; i < 10 && walk != null; i++) {
-            if (Files.isDirectory(walk.resolve("billing_client")) || Files.isDirectory(walk.resolve("sri_images"))) {
-                return walk.resolve("sri_images");
-            }
-            walk = walk.getParent();
+        addSibling(dirs, catalinaBase, "sri_images");
+        addSibling(dirs, catalinaHome, "sri_images");
+        addSibling(dirs, catalinaBase, "webapps", "sri_images");
+        addSibling(dirs, catalinaHome, "webapps", "sri_images");
+        addSibling(dirs, cwd, "webapps", "sri_images");
+        addSibling(dirs, catalinaBase, "temp", "sri_images");
+        addSibling(dirs, catalinaHome, "temp", "sri_images");
+        Path near = findNear(cwd);
+        if (near != null) {
+            dirs.add(near);
         }
-        return cwd.resolve("sri_images");
+        dirs.add(Path.of(System.getProperty("java.io.tmpdir", "/tmp")).resolve("sri_images"));
+        return dirs;
+    }
+
+    private static void add(List<Path> dirs, String value) {
+        if (value != null && !value.isBlank()) {
+            dirs.add(Path.of(value.trim()));
+        }
+    }
+
+    private static void addSibling(List<Path> dirs, Path home, String... parts) {
+        if (home == null) {
+            return;
+        }
+        Path path = home.toAbsolutePath().normalize();
+        for (String part : parts) {
+            path = path.resolve(part);
+        }
+        dirs.add(path);
+    }
+
+    private static boolean canWrite(Path dir) {
+        try {
+            Files.createDirectories(dir);
+            Path probe = dir.resolve(".sri_write_" + UUID.randomUUID());
+            Files.writeString(probe, "ok");
+            Files.deleteIfExists(probe);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private static Path toPath(String value) {
+        return value == null || value.isBlank() ? null : Path.of(value);
+    }
+
+    private static Path findNear(Path... roots) {
+        for (Path root : roots) {
+            if (root == null) {
+                continue;
+            }
+            Path walk = root.toAbsolutePath().normalize();
+            for (int i = 0; i < 8 && walk != null && walk.getNameCount() > 0; i++) {
+                Path images = walk.resolve("sri_images");
+                if (Files.isDirectory(images) || Files.isDirectory(walk.resolve("billing_client"))
+                        || Files.isDirectory(walk.resolve("sri"))) {
+                    return images;
+                }
+                walk = walk.getParent();
+            }
+        }
+        return null;
+    }
+
+    private static String writeHint(Path dir, String message) {
+        String user = System.getProperty("user.name", "tomcat");
+        String path = dir == null ? "/opt/tomcat/webapps/sri_images" : dir.toString();
+        return message + ". Tomcat is running as '" + user + "'. In FileZilla set sri_images permission to 777, or SSH: "
+                + "sudo chown -R " + user + ":" + user + " " + path + " && sudo chmod 777 " + path;
     }
 
     private static String extension(MultipartFile file, String contentType) {
