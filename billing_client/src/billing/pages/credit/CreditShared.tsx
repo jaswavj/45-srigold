@@ -41,8 +41,14 @@ type Account = {
 const money = (n?: number | null) =>
   n == null || Number.isNaN(n) ? '—' : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const wt = (n?: number | null) =>
+  n == null || Number.isNaN(n) ? '—' : Number(n).toFixed(3);
+
 const num = (n?: number | null) =>
   n == null || Number.isNaN(n) ? '—' : Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const fmtAmt = (n?: number | null, asWt?: boolean) => (asWt ? wt(n) : money(n));
+const fmtNum = (n?: number | null, asWt?: boolean) => (asWt ? wt(n) : num(n));
 
 export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
   const navigate = useNavigate();
@@ -117,16 +123,16 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
       </h2>
       <div className="crd-stats">
         <div className="mst-card crd-stat">
-          <div className="crd-stat-l">Due {isCustomer ? 'Customers' : 'Suppliers'}</div>
+          <div className="crd-stat-l">{isCustomer ? 'Balance Customers' : 'Due Suppliers'}</div>
           <div className="crd-stat-v">{totals?.dueCount ?? 0}</div>
         </div>
         <div className="mst-card crd-stat clickable" onClick={() => setDueOpen(true)}>
-          <div className="crd-stat-l">Total Due</div>
-          <div className={`crd-stat-v ${(totals?.totalDue || 0) > 0 ? 'due' : 'ok'}`}>{money(totals?.totalDue || 0)}</div>
+          <div className="crd-stat-l">{isCustomer ? 'Total Balance' : 'Total Due'}</div>
+          <div className={`crd-stat-v ${(totals?.totalDue || 0) > 0 ? 'due' : 'ok'}`}>{fmtAmt(totals?.totalDue || 0, isCustomer)}</div>
         </div>
         <div className="mst-card crd-stat">
           <div className="crd-stat-l">Total Advance</div>
-          <div className="crd-stat-v ok">{money(totals?.totalAdvance || 0)}</div>
+          <div className="crd-stat-v ok">{fmtAmt(totals?.totalAdvance || 0, isCustomer)}</div>
         </div>
       </div>
       <div className="mst-card">
@@ -187,10 +193,10 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
               <div>
                 <div style={{ fontWeight: 800 }}>
                   <i className="fas fa-exclamation-triangle" style={{ color: '#dc2626', marginRight: 8 }} />
-                  {isCustomer ? 'Customers' : 'Suppliers'} with Due
+                  {isCustomer ? 'Customers with Balance' : 'Suppliers with Due'}
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
-                  {summary?.dueList.length || 0} {party.toLowerCase()}{(summary?.dueList.length || 0) !== 1 ? 's' : ''} | Total: {money(totals?.totalDue || 0)}
+                  {summary?.dueList.length || 0} {party.toLowerCase()}{(summary?.dueList.length || 0) !== 1 ? 's' : ''} | Total: {fmtAmt(totals?.totalDue || 0, isCustomer)}
                 </div>
               </div>
               <button className="mst-icon-btn" type="button" onClick={() => setDueOpen(false)}>&times;</button>
@@ -202,19 +208,19 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
                     <th>#</th>
                     <th>{party}</th>
                     <th>Phone</th>
-                    <th className="num">Due</th>
+                    <th className="num">{isCustomer ? 'Balance' : 'Due'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(summary?.dueList || []).length === 0 ? (
-                    <tr><td colSpan={4} className="mst-empty">No outstanding dues.</td></tr>
+                    <tr><td colSpan={4} className="mst-empty">{isCustomer ? 'No outstanding balance.' : 'No outstanding dues.'}</td></tr>
                   ) : (
                     summary!.dueList.map((row, i) => (
                       <tr key={row.id} className="crd-due-row" onClick={() => openAccount(row.id)}>
                         <td>{i + 1}</td>
                         <td style={{ fontWeight: 700 }}>{row.name}</td>
                         <td>{row.phone}</td>
-                        <td className="num" style={{ color: '#dc2626', fontWeight: 800 }}>{money(row.balance)}</td>
+                        <td className="num" style={{ color: '#dc2626', fontWeight: 800 }}>{fmtAmt(row.balance, isCustomer)}</td>
                       </tr>
                     ))
                   )}
@@ -266,8 +272,9 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   const canCollect = (account?.balance || 0) > 0.005;
 
   const resetAmounts = (type: string, balance: number) => {
+    const digits = isCustomer ? 3 : 2;
     if (type === 'COLLECTION') {
-      setAmount(Math.max(0, balance).toFixed(2));
+      setAmount(Math.max(0, balance).toFixed(digits));
       applyMode('1', Math.max(0, balance));
     } else {
       setAmount('');
@@ -278,16 +285,17 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   };
 
   const applyMode = (mode: string, total: number) => {
-    setPayMode(mode);
-    if (mode === '1') {
-      setCashPaid(total.toFixed(2));
+    const digits = isCustomer ? 3 : 2;
+    setPayMode(isCustomer ? '1' : mode);
+    if (isCustomer || mode === '1') {
+      setCashPaid(total.toFixed(digits));
       setBankPaid('');
     } else if (mode === '2') {
-      setBankPaid(total.toFixed(2));
+      setBankPaid(total.toFixed(digits));
       setCashPaid('');
     } else {
-      setCashPaid(total.toFixed(2));
-      setBankPaid('0.00');
+      setCashPaid(total.toFixed(digits));
+      setBankPaid((0).toFixed(digits));
     }
   };
 
@@ -325,12 +333,12 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
       return;
     }
     if (amt <= 0) {
-      setFormError('Please enter an amount greater than zero.');
+      setFormError(isCustomer ? 'Please enter a weight greater than zero.' : 'Please enter an amount greater than zero.');
       return;
     }
     if (entryType !== 'OLD_DUE') {
       if (payMode === '1' && cash <= 0) {
-        setFormError('Please enter cash paid amount.');
+        setFormError(isCustomer ? 'Please enter collected wt.' : 'Please enter cash paid amount.');
         return;
       }
       if (payMode === '2' && bank <= 0) {
@@ -364,11 +372,11 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         : await creditApi.saveSupplierEntry(id, payload);
       const saved = creditData<{ entryType: string; newBalance?: number; newAdvance?: number }>(res);
       if (saved.entryType === 'COLLECTION') {
-        toast.success(`Remaining balance: ${money(saved.newBalance)}`);
+        toast.success(`Remaining balance: ${fmtAmt(saved.newBalance, isCustomer)}`);
       } else if (saved.entryType === 'ADVANCE') {
-        toast.success(`Total advance: ${money(saved.newAdvance)}`);
+        toast.success(`Total advance: ${fmtAmt(saved.newAdvance, isCustomer)}`);
       } else {
-        toast.success(`Account balance: ${money(saved.newBalance)}`);
+        toast.success(`Account balance: ${fmtAmt(saved.newBalance, isCustomer)}`);
       }
       await load();
     } catch (err) {
@@ -384,9 +392,12 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
 
   const amountClass = entryType === 'OLD_DUE' ? 'old' : entryType === 'ADVANCE' ? 'advance' : 'collect';
   const showPay = entryType !== 'OLD_DUE';
-  const showCash = showPay && (payMode === '1' || payMode === '3');
-  const showBank = showPay && (payMode === '2' || payMode === '3');
-  const showPayType = showPay && (payMode === '2' || payMode === '3');
+  const showMode = showPay && !isCustomer;
+  const showCash = showPay && (isCustomer || payMode === '1' || payMode === '3');
+  const showBank = showPay && !isCustomer && (payMode === '2' || payMode === '3');
+  const showPayType = showPay && !isCustomer && (payMode === '2' || payMode === '3');
+  const step = isCustomer ? '0.001' : '0.01';
+  const digits = isCustomer ? 3 : 2;
 
   return (
     <div className="mst-page crd-account">
@@ -417,11 +428,11 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
             </div>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Advance</div>
-              <div className="crd-stat-v ok">{money(account.advance)}</div>
+              <div className="crd-stat-v ok">{fmtAmt(account.advance, isCustomer)}</div>
             </div>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Account Balance</div>
-              <div className={`crd-stat-v ${account.balance > 0 ? 'due' : 'ok'}`}>{money(account.balance)}</div>
+              <div className={`crd-stat-v ${account.balance > 0 ? 'due' : 'ok'}`}>{fmtAmt(account.balance, isCustomer)}</div>
             </div>
           </div>
           <div className="mst-card">
@@ -436,9 +447,9 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                     <th>#</th>
                     <th>Type</th>
                     <th>{isCustomer ? 'Bill No' : 'GRN No'}</th>
-                    <th className="num">Payable / Amt</th>
-                    <th className="num">Paid</th>
-                    <th className="num">Pending</th>
+                    <th className="num">{isCustomer ? 'Total wt' : 'Payable / Amt'}</th>
+                    <th className="num">{isCustomer ? 'Collected wt' : 'Paid'}</th>
+                    <th className="num">{isCustomer ? 'Balance' : 'Pending'}</th>
                     <th>Date / Time</th>
                     <th>{isCustomer ? 'Biller' : 'User'}</th>
                   </tr>
@@ -480,10 +491,10 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                               ? <span style={{ fontWeight: row.docNo ? 600 : 400, fontSize: row.docNo ? undefined : 11 }}>{row.docNo || row.notes}</span>
                               : <span style={{ opacity: 0.35 }}>—</span>}
                           </td>
-                          <td className="num">{num(row.amount)}</td>
-                          <td className="num">{num(row.paid)}</td>
+                          <td className="num">{fmtNum(row.amount, isCustomer)}</td>
+                          <td className="num">{fmtNum(row.paid, isCustomer)}</td>
                           <td className="num" style={{ color: hasPend || (type === 'OLD_DUE') || pending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
-                            {num(row.pending)}
+                            {fmtNum(row.pending, isCustomer)}
                           </td>
                           <td style={{ whiteSpace: 'nowrap' }}>
                             {row.date}
@@ -506,7 +517,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               <div className="mst-fg">
                 <label>Entry Type</label>
                 <select className="mst-sel" value={entryType} onChange={(e) => onTypeChange(e.target.value)}>
-                  <option value="COLLECTION" disabled={!canCollect}>{isCustomer ? 'Collect Payment (Due)' : 'Pay Due'}</option>
+                  <option value="COLLECTION" disabled={!canCollect}>{isCustomer ? 'Collect Payment (Balance)' : 'Pay Due'}</option>
                   <option value="ADVANCE">Add Advance</option>
                   <option value="OLD_DUE">Add Old Due (Before System)</option>
                 </select>
@@ -517,10 +528,16 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                 </div>
               )}
               <div className="mst-fg">
-                <label>{entryType === 'OLD_DUE' ? 'Old Due Amount' : entryType === 'ADVANCE' ? 'Advance Amount' : 'Amount to Collect'}</label>
-                <input className={`mst-inp crd-amt ${amountClass}`} type="number" min="0" step="0.01" value={amount} onChange={(e) => onAmount(e.target.value)} />
+                <label>
+                  {entryType === 'OLD_DUE'
+                    ? (isCustomer ? 'Old Due wt' : 'Old Due Amount')
+                    : entryType === 'ADVANCE'
+                      ? (isCustomer ? 'Advance wt' : 'Advance Amount')
+                      : (isCustomer ? 'Wt to collect' : 'Amount to Collect')}
+                </label>
+                <input className={`mst-inp crd-amt ${amountClass}`} type="number" min="0" step={step} value={amount} onChange={(e) => onAmount(e.target.value)} />
               </div>
-              {showPay && (
+              {showMode && (
                 <div className="mst-fg">
                   <label>Pay Mode</label>
                   <select className="mst-sel" value={payMode} onChange={(e) => applyMode(e.target.value, parseFloat(amount) || 0)}>
@@ -544,17 +561,17 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               )}
               {showCash && (
                 <div className="mst-fg">
-                  <label>Cash Paid</label>
+                  <label>{isCustomer ? 'Collected wt' : 'Cash Paid'}</label>
                   <input
                     className="mst-inp"
                     type="number"
                     min="0"
-                    step="0.01"
+                    step={step}
                     value={cashPaid}
                     onChange={(e) => {
                       const cash = parseFloat(e.target.value) || 0;
                       setCashPaid(e.target.value);
-                      if (payMode === '3') setBankPaid(Math.max(0, (parseFloat(amount) || 0) - cash).toFixed(2));
+                      if (payMode === '3') setBankPaid(Math.max(0, (parseFloat(amount) || 0) - cash).toFixed(digits));
                     }}
                   />
                 </div>
@@ -566,12 +583,12 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                     className="mst-inp"
                     type="number"
                     min="0"
-                    step="0.01"
+                    step={step}
                     value={bankPaid}
                     onChange={(e) => {
                       const bank = parseFloat(e.target.value) || 0;
                       setBankPaid(e.target.value);
-                      if (payMode === '3') setCashPaid(Math.max(0, (parseFloat(amount) || 0) - bank).toFixed(2));
+                      if (payMode === '3') setCashPaid(Math.max(0, (parseFloat(amount) || 0) - bank).toFixed(digits));
                     }}
                   />
                 </div>
@@ -587,8 +604,8 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               </div>
               {entryType === 'COLLECTION' && (
                 <div className="mst-fg">
-                  <label>Remaining Balance</label>
-                  <input className="mst-inp" readOnly value={remaining.toFixed(2)} style={{ fontWeight: 700, color: '#dc2626', background: '#f8fafc' }} />
+                  <label>{isCustomer ? 'Remaining balance wt' : 'Remaining Balance'}</label>
+                  <input className="mst-inp" readOnly value={remaining.toFixed(digits)} style={{ fontWeight: 700, color: '#dc2626', background: '#f8fafc' }} />
                 </div>
               )}
               <div className="mst-actions">

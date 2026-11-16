@@ -288,12 +288,14 @@
 }
 
 .pos-table-gold th:nth-child(3),
-.pos-table-gold td:nth-child(3) {
-  width: 9.5rem;
-}
-
+.pos-table-gold td:nth-child(3),
 .pos-table-gold th:nth-child(4),
 .pos-table-gold td:nth-child(4) {
+  width: 8.5rem;
+}
+
+.pos-table-gold th:nth-child(5),
+.pos-table-gold td:nth-child(5) {
   width: 8rem;
 }
 
@@ -865,6 +867,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(88px, 0.8fr);
 }
 
+.pos-save-pay-wt {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(88px, 0.8fr);
+}
+
 @media (max-width: 720px) {
   .pos-save-pay-row {
     grid-template-columns: 1fr 1fr;
@@ -1119,7 +1125,7 @@
     gap: 10px;
   }
 
-  .pos-save-pay-row .pos-fg:nth-child(1) {
+  .pos-save-pay-row:not(.pos-save-pay-wt) .pos-fg:nth-child(1) {
     grid-column: 1 / -1;
   }
 
@@ -1251,11 +1257,11 @@
     grid-column: 1 / -1;
   }
 
-  .gold-item-wt {
+  .gold-item-amt {
     grid-column: 1;
   }
 
-  .gold-item-amt {
+  .gold-item-wt {
     grid-column: 2;
   }
 

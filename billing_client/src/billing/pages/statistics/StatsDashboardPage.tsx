@@ -20,7 +20,6 @@ import { statsApi, statsData, statsError } from '../../../api/statistics/statist
 import ListPagination from '../../components/ListPagination';
 import { normalizePage } from '../../components/ListPagination';
 import { openBillWhatsApp } from '../../components/whatsAppBill';
-import CollectionCards from '../../components/CollectionCards';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../admin/MonthlyBills.css';
 import '../credit/Credit.css';
@@ -43,11 +42,6 @@ type BillCard = {
   returned?: boolean;
   exchPoint?: number;
 };
-type TodayCollection = {
-  saleTotal: number; saleCash: number; saleBank: number;
-  dueTotal: number; dueCash: number; dueBank: number;
-  totalCash: number; totalBank: number; grandTotal: number;
-};
 type Dash = {
   year: number; month: number; label: string;
   sales: number; lastSales: number; salesPct: number;
@@ -55,7 +49,6 @@ type Dash = {
   expense: number; lastExpense: number; expensePct: number;
   profit: number; lastProfit: number; profitPct: number;
   netProfit: number; todaySales: number; todayBills: number; daily: Day[];
-  todayCollection?: TodayCollection;
   exchPoint?: number;
   bills?: BillCard[];
 };
@@ -92,8 +85,6 @@ const fmtTime = (t: string) => {
   h = h % 12 || 12;
   return `${h}:${m} ${ampm}`;
 };
-
-const payLabel = (mode: number) => (mode === 2 ? 'Bank' : mode === 3 ? 'Mixed' : 'Cash');
 
 const useNarrow = () => {
   const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches);
@@ -377,9 +368,6 @@ const StatsDashboardPage: React.FC = () => {
               </div>
             </div>
           </div>
-          {data.todayCollection && (
-            <CollectionCards title="Today's Collection" data={data.todayCollection} />
-          )}
           <div className="mst-card" style={{ marginTop: 12 }}>
             <div className="mst-card-h">Bills — {data.label} ({billsTotal})</div>
             <div className="mst-card-b">
@@ -397,13 +385,14 @@ const StatsDashboardPage: React.FC = () => {
                             {fmtDate(card.date)} · {fmtTime(card.time)}
                             {card.customerPhone ? ` · ${card.customerPhone}` : ''}
                           </p>
+                          {(card.isTaxBill === 1 || card.stateLabel || card.exchanged || card.returned) && (
                           <div className="mb-chips">
-                            <span className="mb-chip">{payLabel(card.paymentMode)}</span>
                             {card.isTaxBill === 1 && <span className="mb-chip">GST</span>}
                             {card.stateLabel && <span className="mb-chip">{card.stateLabel}</span>}
                             {card.exchanged && <span className="mb-chip exch">Exchanged</span>}
                             {card.returned && <span className="mb-chip ret">Returned</span>}
                           </div>
+                          )}
                         </div>
                         <div className="mb-amt">
                           {inr(Number(card.payable || 0) + Number(card.exchPoint || 0))}

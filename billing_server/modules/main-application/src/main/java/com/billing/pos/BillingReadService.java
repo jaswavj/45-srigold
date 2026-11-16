@@ -486,7 +486,7 @@ public class BillingReadService {
         String sql =
                 "SELECT b.id AS bill_id, b.bill_display, b.date, " +
                         "IFNULL(NULLIF(TRIM(c.name), ''), IFNULL(b.cusName, '')) AS customer_name, " +
-                        "IFNULL(p.name, '') AS item_name, IFNULL(d.metal_wt, 0) AS metal_wt, " +
+                        "IFNULL(p.name, '') AS item_name, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.price, 0) AS finishing_wt, " +
                         "IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2 " +
                         "FROM prod_bill b " +
                         "JOIN prod_bill_details d ON d.bill_id = b.id " +
@@ -525,6 +525,7 @@ public class BillingReadService {
         photo.setCustomerName("-".equals(name) ? "" : name);
         photo.setItemName(nz(rs.getString("item_name")));
         photo.setMetalWt(rs.getDouble("metal_wt"));
+        photo.setFinishingWt(rs.getDouble("finishing_wt"));
         photo.setFileName(file);
         photos.add(photo);
     }

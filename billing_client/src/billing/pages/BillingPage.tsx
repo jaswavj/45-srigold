@@ -158,7 +158,7 @@ const BillingPage: React.FC = () => {
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const metalWtRef = useRef<HTMLInputElement>(null);
-  const amountRef = useRef<HTMLInputElement>(null);
+  const finishingRef = useRef<HTMLInputElement>(null);
   const hitRef = useRef<HTMLButtonElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const custPhoneRef = useRef<HTMLInputElement>(null);
@@ -279,10 +279,10 @@ const BillingPage: React.FC = () => {
         setIsTaxBill(false);
         setIsCommission(false);
         setExtraDisc('0');
-        setMode(String(data.paymentMode || 1));
-        setPayType(String(data.paymentType || 1));
-        setCashPaid(money(data.cashPaid || 0));
-        setBankPaid(money(data.bankPaid || 0));
+        setMode('1');
+        setPayType('1');
+        setCashPaid(money((data.cashPaid || 0) + (data.bankPaid || 0)));
+        setBankPaid('0');
         setBalance(money(data.balance || 0));
         setExchangePoint(data.exchangePoint || 0);
         toast.info(`Editing bill ${data.billDisplay}`);
@@ -295,16 +295,17 @@ const BillingPage: React.FC = () => {
   }, [searchParams]);
 
   const totals = useMemo(() => {
-    const priceTotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
-    return { priceTotal, discountTotal: 0, commissionTotal: 0, grandTotal: priceTotal };
+    const finishingTotal = lines.reduce((s, l) => s + (Number(l.price) || 0), 0);
+    const wastageTotal = lines.reduce((s, l) => s + (Number(l.metalWt) || 0), 0);
+    const grandTotal = finishingTotal + wastageTotal;
+    return { priceTotal: finishingTotal, finishingTotal, wastageTotal, discountTotal: 0, commissionTotal: 0, grandTotal };
   }, [lines]);
 
   const extra = 0;
   const exchCredit = 0;
   const payable = Math.max(0, totals.grandTotal);
   const cashAmt = parseFloat(cashPaid) || 0;
-  const bankAmt = parseFloat(bankPaid) || 0;
-  const paidAmt = cashAmt + bankAmt;
+  const paidAmt = cashAmt;
   const dueAmt = Math.max(0, payable - paidAmt);
   const paidOver = paidAmt - payable > 0.001;
   const needsCustomerForDue =
@@ -329,20 +330,16 @@ const BillingPage: React.FC = () => {
 
   useEffect(() => {
     if (!autoPay.current) return;
-    if (mode === '1') {
-      setCashPaid(money(payable));
-      setBankPaid('0');
-      setBalance('0');
-    } else if (mode === '2') {
-      setCashPaid('0');
-      setBankPaid(money(payable));
-      setBalance('0');
-    }
-  }, [payable, mode, payEpoch]);
+    setMode('1');
+    setPayType('1');
+    setCashPaid(money(payable));
+    setBankPaid('0');
+    setBalance('0');
+  }, [payable, payEpoch]);
 
   useEffect(() => {
-    setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0) - (parseFloat(bankPaid) || 0))));
-  }, [payable, cashPaid, bankPaid]);
+    setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0))));
+  }, [payable, cashPaid]);
 
   useEffect(() => {
     custHitRef.current?.scrollIntoView({ block: 'nearest' });
@@ -442,8 +439,8 @@ const BillingPage: React.FC = () => {
 
   const focusQty = () => {
     requestAnimationFrame(() => {
-      metalWtRef.current?.focus();
-      metalWtRef.current?.select();
+      finishingRef.current?.focus();
+      finishingRef.current?.select();
     });
   };
 
@@ -621,10 +618,11 @@ const BillingPage: React.FC = () => {
       searchRef.current?.focus();
       return;
     }
-    const unitPrice = parseFloat(price);
-    if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-      toast.error('Enter amount');
-      amountRef.current?.focus();
+    const unitPrice = parseWt(price);
+    const metalWt = parseWt(draftMetalWt);
+    if (unitPrice <= 0 && metalWt <= 0) {
+      toast.error('Enter finishing wt or wastage wt');
+      finishingRef.current?.focus();
       return;
     }
     markSaleDraft();
@@ -632,7 +630,6 @@ const BillingPage: React.FC = () => {
     setLines((prev) => {
       if (linesStampRef.current !== stamp) return prev;
       const key = prev.reduce((m, l) => Math.max(m, l.key), 0) + 1;
-      const metalWt = parseWt(draftMetalWt);
       const line: Line = pending && matchesPending(itemName, pending)
         ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt }
         : {
@@ -816,7 +813,7 @@ const BillingPage: React.FC = () => {
     finalDiscount: 0,
     payableAmount: payable,
     grandTotal: totals.grandTotal,
-    priceTotal: totals.priceTotal,
+    priceTotal: totals.grandTotal,
     discountTotal: totals.discountTotal,
     quotationId,
     products: collectProducts(),
@@ -866,7 +863,7 @@ const BillingPage: React.FC = () => {
   const showSavedBill = !!savedNo && savedStamp === billStamp && !editBillId;
 
   const openSave = () => {
-    if (totals.priceTotal === 0 && !savedNo) {
+    if (totals.grandTotal === 0 && !savedNo) {
       toast.error('Empty bill. Add products first.');
       return;
     }
@@ -882,20 +879,20 @@ const BillingPage: React.FC = () => {
 
   const saveBill = async () => {
     if (showSavedBill) return;
-    if (totals.priceTotal === 0) {
+    if (totals.grandTotal === 0) {
       toast.error('Empty bill. Add products first.');
       return;
     }
     const cash = parseFloat(cashPaid) || 0;
-    const bank = parseFloat(bankPaid) || 0;
-    const paid = cash + bank;
+    const bank = 0;
+    const paid = cash;
     const due = Math.max(0, payable - paid);
-    if (cash < 0 || bank < 0) {
-      toast.error('Paid amount cannot be negative.');
+    if (cash < 0) {
+      toast.error('Collected wt cannot be negative.');
       return;
     }
     if (paid > payable + 0.001) {
-      toast.error('Paid amount cannot be more than payable amount.');
+      toast.error('Collected wt cannot be more than finishing wt + wastage wt.');
       return;
     }
     if ((customerName === '' || customerName === '-') && due > 0.001) {
@@ -909,8 +906,8 @@ const BillingPage: React.FC = () => {
         ...payloadBase(),
         cashPaid: cash,
         bankPaid: bank,
-        mode: Number(mode),
-        type: Number(payType),
+        mode: 1,
+        type: 1,
         balance: due,
         quotationId: editBillId ? 0 : quotationId,
         exchangePointUsed: editBillId ? 0 : exchangeUsed,
@@ -936,7 +933,7 @@ const BillingPage: React.FC = () => {
 
   const saveHold = async () => {
     if (holdSavingRef.current) return;
-    if (totals.priceTotal === 0) {
+    if (totals.grandTotal === 0) {
       toast.error('Add products before hold.');
       return;
     }
@@ -1571,8 +1568,25 @@ const BillingPage: React.FC = () => {
                   </div>
                 )}
               </div>
+              <div className="pos-fg gold-item-amt">
+                <span className="pos-lbl">Finishing wt</span>
+                <input
+                  ref={finishingRef}
+                  className="pos-inp"
+                  value={price}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onChange={(e) => setPrice(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    metalWtRef.current?.focus();
+                    metalWtRef.current?.select();
+                  }}
+                />
+              </div>
               <div className="pos-fg gold-item-wt">
-                <span className="pos-lbl">Metal wt (gram)</span>
+                <span className="pos-lbl">Wastage wt</span>
                 <input
                   ref={metalWtRef}
                   className="pos-inp"
@@ -1580,23 +1594,6 @@ const BillingPage: React.FC = () => {
                   placeholder="0.000"
                   inputMode="decimal"
                   onChange={(e) => setDraftMetalWt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
-                    e.preventDefault();
-                    amountRef.current?.focus();
-                    amountRef.current?.select();
-                  }}
-                />
-              </div>
-              <div className="pos-fg gold-item-amt">
-                <span className="pos-lbl">Amount</span>
-                <input
-                  ref={amountRef}
-                  className="pos-inp"
-                  value={price}
-                  placeholder="0.00"
-                  inputMode="decimal"
-                  onChange={(e) => setPrice(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addProduct()}
                 />
               </div>
@@ -1627,19 +1624,28 @@ const BillingPage: React.FC = () => {
             <table className="pos-table pos-table-lines pos-table-gold">
               <thead>
                 <tr>
-                  <th>#</th><th>Item Name</th><th>Metal wt (gram)</th><th>Photos</th><th>Amount</th><th></th>
+                  <th>#</th><th>Item Name</th><th>Finishing wt</th><th>Wastage wt</th><th>Photos</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {lines.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="gold-empty">Add item name, metal wt, photos and amount</td>
+                    <td colSpan={6} className="gold-empty">Add item name, finishing wt, wastage wt and photos</td>
                   </tr>
                 )}
                 {lines.map((line, idx) => (
                   <tr key={line.key}>
                     <td>{idx + 1}</td>
                     <td>{line.name}</td>
+                    <td>
+                      <input
+                        className="pos-inp"
+                        value={line.price || ''}
+                        inputMode="decimal"
+                        placeholder="0.000"
+                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseWt(e.target.value))}
+                      />
+                    </td>
                     <td>
                       <input
                         className="pos-inp"
@@ -1666,14 +1672,6 @@ const BillingPage: React.FC = () => {
                       </div>
                     </td>
                     <td>
-                      <input
-                        className="pos-inp"
-                        value={line.price}
-                        inputMode="decimal"
-                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseFloat(e.target.value) || 0)}
-                      />
-                    </td>
-                    <td>
                       <button className="pos-btn pos-btn-outline" type="button" onClick={() => removeLine(line.key)}>Delete</button>
                     </td>
                   </tr>
@@ -1684,7 +1682,7 @@ const BillingPage: React.FC = () => {
 
           <div className="gold-line-cards">
             {lines.length === 0 && (
-              <div className="gold-empty-card">Add item name, metal wt, photos and amount</div>
+              <div className="gold-empty-card">Add item name, finishing wt, wastage wt and photos</div>
             )}
             {lines.map((line, idx) => (
               <div key={line.key} className="gold-line-card">
@@ -1708,23 +1706,24 @@ const BillingPage: React.FC = () => {
                     />
                   </div>
                   <div className="gold-card-fields">
+                    <div className="pos-fg gold-card-amt">
+                      <span className="pos-lbl">Finishing wt</span>
+                      <input
+                        className="pos-inp"
+                        value={line.price || ''}
+                        inputMode="decimal"
+                        placeholder="0.000"
+                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseWt(e.target.value))}
+                      />
+                    </div>
                     <div className="pos-fg gold-card-wt">
-                      <span className="pos-lbl">Metal wt (gram)</span>
+                      <span className="pos-lbl">Wastage wt</span>
                       <input
                         className="pos-inp"
                         value={line.metalWt || ''}
                         inputMode="decimal"
                         placeholder="0.000"
                         onChange={(e) => updateLineMetalWt(line.key, e.target.value)}
-                      />
-                    </div>
-                    <div className="pos-fg gold-card-amt">
-                      <span className="pos-lbl">Amount</span>
-                      <input
-                        className="pos-inp"
-                        value={line.price}
-                        inputMode="decimal"
-                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseFloat(e.target.value) || 0)}
                       />
                     </div>
                   </div>
@@ -1736,8 +1735,8 @@ const BillingPage: React.FC = () => {
           <div className="pos-bottom gold-bottom">
             <div className="pos-footer">
               <div className="pos-total-box">
-                <span>Total</span>
-                <strong>{rupee(payable)}</strong>
+                <span>Finishing {money(totals.finishingTotal)} + Wastage {money(totals.wastageTotal)}</span>
+                <strong>{money(payable)}</strong>
               </div>
               <div className="pos-acts gold-acts">
                 <button className="pos-btn pos-btn-outline gold-desk-only" type="button" onClick={openDupe}>Last Bills</button>
@@ -1783,9 +1782,9 @@ const BillingPage: React.FC = () => {
           <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pos-save-head">
               <h4>{editBillId ? `Update Bill #${editBillNo}` : 'Save Bill'}</h4>
-              <div className="pos-save-head-amt" title="Amount to collect">
-                <span>Payable</span>
-                <strong>{rupee(payable)}</strong>
+              <div className="pos-save-head-amt" title="Finishing wt + wastage wt">
+                <span>Total wt</span>
+                <strong>{money(payable)}</strong>
               </div>
             </div>
 
@@ -1838,49 +1837,24 @@ const BillingPage: React.FC = () => {
               </div>
 
               <p className="pos-save-section-label">Payment</p>
-              <div className={`pos-save-row pos-save-pay-row pos-save-pay-${mode}`}>
+              <div className="pos-save-row pos-save-pay-row pos-save-pay-wt">
                 <div className="pos-fg">
-                  <span className="pos-lbl pos-lbl-em">Mode</span>
-                  <select className="pos-sel pos-sel-em" value={mode} onChange={(e) => { autoPay.current = true; setMode(e.target.value); }}>
-                    <option value="1">Cash</option>
-                    <option value="2">Bank</option>
-                    <option value="3">Mixed</option>
-                  </select>
+                  <span className="pos-lbl">Finishing wt</span>
+                  <input className="pos-inp pos-inp-muted" value={money(totals.finishingTotal)} readOnly />
                 </div>
-                {mode !== '1' && (
-                  <div className="pos-fg">
-                    <span className="pos-lbl pos-lbl-em">Bank type</span>
-                    <select className="pos-sel pos-sel-em" value={payType} onChange={(e) => setPayType(e.target.value)}>
-                      <option value="1">UPI</option>
-                      <option value="2">Debit</option>
-                      <option value="3">Credit</option>
-                      <option value="4">NEFT</option>
-                      <option value="5">Wallet</option>
-                    </select>
-                  </div>
-                )}
-                {mode !== '2' && (
-                  <div className="pos-fg">
-                    <span className="pos-lbl pos-lbl-em">Cash</span>
-                    <input
-                      className="pos-inp pos-inp-pay"
-                      value={cashPaid}
-                      inputMode="decimal"
-                      onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
-                    />
-                  </div>
-                )}
-                {mode !== '1' && (
-                  <div className="pos-fg">
-                    <span className="pos-lbl pos-lbl-em">Bank</span>
-                    <input
-                      className="pos-inp pos-inp-pay"
-                      value={bankPaid}
-                      inputMode="decimal"
-                      onChange={(e) => { autoPay.current = false; setBankPaid(e.target.value); }}
-                    />
-                  </div>
-                )}
+                <div className="pos-fg">
+                  <span className="pos-lbl">Wastage wt</span>
+                  <input className="pos-inp pos-inp-muted" value={money(totals.wastageTotal)} readOnly />
+                </div>
+                <div className="pos-fg">
+                  <span className="pos-lbl pos-lbl-em">Collected wt</span>
+                  <input
+                    className="pos-inp pos-inp-pay"
+                    value={cashPaid}
+                    inputMode="decimal"
+                    onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
+                  />
+                </div>
                 <div className={`pos-save-due-chip ${dueAmt > 0.001 ? 'has-due' : paidOver ? 'over-paid' : 'settled'}`}>
                   <span>Due</span>
                   <strong>{money(dueAmt)}</strong>
@@ -1888,7 +1862,7 @@ const BillingPage: React.FC = () => {
               </div>
 
               {paidOver && (
-                <p className="pos-save-inline pos-save-inline-error">Paid exceeds payable ({money(payable)}).</p>
+                <p className="pos-save-inline pos-save-inline-error">Collected wt exceeds total wt ({money(payable)}).</p>
               )}
               {needsCustomerForDue && !paidOver && (
                 <p className="pos-save-inline pos-save-inline-warn">Enter customer name for due {money(dueAmt)}.</p>

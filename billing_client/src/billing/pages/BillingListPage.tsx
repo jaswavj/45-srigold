@@ -25,8 +25,7 @@ type ListRow = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 const api = new BillingApiService();
-const money = (n: number) => `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
-const metal = (n?: number | null) => {
+const wt = (n?: number | null) => {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return '-';
   return v.toFixed(3);
@@ -195,8 +194,8 @@ const BillingListPage: React.FC = () => {
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Item name</th>
-                <th>Metal wt (gram)</th>
-                <th>Cost</th>
+                <th>Finishing wt</th>
+                <th>Wastage wt</th>
                 <th>Photo 1</th>
                 <th>Photo 2</th>
                 <th>Action</th>
@@ -215,8 +214,8 @@ const BillingListPage: React.FC = () => {
                   <td>{row.customerName || '-'}</td>
                   <td>{row.phone || '-'}</td>
                   <td>{row.itemName || '-'}</td>
-                  <td>{metal(row.metalWt)}</td>
-                  <td>{money(row.cost)}</td>
+                  <td>{wt(row.cost)}</td>
+                  <td>{wt(row.metalWt)}</td>
                   <td><Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} /></td>
                   <td><Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} /></td>
                   <td><RowActs row={row} /></td>
@@ -236,8 +235,8 @@ const BillingListPage: React.FC = () => {
               <div className="gold-list-card-name">{row.customerName || '-'}</div>
               <div className="gold-list-card-meta">{row.phone || '-'}</div>
               <div className="gold-list-card-item">{row.itemName || '-'}</div>
-              <div className="gold-list-card-wt">Metal wt (gram): {metal(row.metalWt)}</div>
-              <div className="gold-list-card-cost">{money(row.cost)}</div>
+              <div className="gold-list-card-wt">Finishing wt: {wt(row.cost)}</div>
+              <div className="gold-list-card-wt">Wastage wt: {wt(row.metalWt)}</div>
               <div className="gold-list-card-photos">
                 <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />
                 <Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} />

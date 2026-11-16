@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
 import { sriImageUrl } from '../../utils/sriImages';
-import { n2 } from './reportHelpers';
 import './BillDetailModal.css';
 
 type Line = {
@@ -29,11 +28,18 @@ type Bill = {
   payments: Pay[];
 };
 
-const money = (n?: number | null) => `₹${n2(n || 0)}`;
-const metal = (n?: number | null) => {
+const wt = (n?: number | null) => {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return '';
-  return v.toFixed(3);
+  return Number(v).toFixed(3);
+};
+
+const payLabel = (mode?: string | null) => {
+  const value = (mode || '').trim().toLowerCase();
+  if (!value || value === 'cash' || value === 'bank' || value === 'cash & bank' || value === '-') {
+    return 'Collected wt';
+  }
+  return mode || 'Collected wt';
 };
 
 const Photo: React.FC<{ fileName?: string; onOpen?: () => void }> = ({ fileName, onOpen }) => {
@@ -123,8 +129,8 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                   </div>
                   <div className="gbd-item-info">
                     <div className="gbd-item-name">{line.name || '-'}</div>
-                    {metal(line.metalWt) ? <div className="gbd-item-wt">Metal wt (gram): {metal(line.metalWt)}</div> : null}
-                    <div className="gbd-item-amt">{money(line.total ?? line.price)}</div>
+                    {wt(line.price) ? <div className="gbd-item-wt">Finishing wt: {wt(line.price)}</div> : null}
+                    {wt(line.metalWt) ? <div className="gbd-item-wt">Wastage wt: {wt(line.metalWt)}</div> : null}
                   </div>
                 </div>
               ))}
@@ -132,22 +138,17 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
 
             <div className="gbd-totals">
               <div>
-                <span>Payable</span>
-                <strong>{money(bill.payable)}</strong>
+                <span>Total wt</span>
+                <strong>{wt(bill.payable) || '0.000'}</strong>
               </div>
               <div>
-                <span>Paid</span>
-                <strong>{money(bill.paid)}</strong>
+                <span>Collected wt</span>
+                <strong>{wt((bill.cashPaid || 0) + (bill.bankPaid || 0) || bill.paid) || '0.000'}</strong>
               </div>
               <div className={(bill.balance || 0) > 0.005 ? 'due' : ''}>
                 <span>Balance</span>
-                <strong>{money(bill.balance)}</strong>
+                <strong>{wt(bill.balance) || '0.000'}</strong>
               </div>
-            </div>
-
-            <div className="gbd-paymix">
-              <div><span>Cash</span><b>{money(bill.cashPaid)}</b></div>
-              <div><span>Bank</span><b>{money(bill.bankPaid)}</b></div>
             </div>
 
             {(bill.payments || []).length > 0 && (
@@ -155,10 +156,10 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                 {(bill.payments || []).map((p, i) => (
                   <div key={`${p.date}-${i}`} className="gbd-pay">
                     <div>
-                      <b>{p.mode || 'Payment'}</b>
+                      <b>{payLabel(p.mode)}</b>
                       <span>{p.date}</span>
                     </div>
-                    <strong>{money(p.paid)}</strong>
+                    <strong>{wt(p.paid) || '0.000'}</strong>
                   </div>
                 ))}
               </div>

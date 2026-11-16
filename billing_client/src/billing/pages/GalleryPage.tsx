@@ -12,10 +12,11 @@ type Photo = {
   customerName: string;
   itemName: string;
   metalWt?: number;
+  finishingWt?: number;
   fileName: string;
 };
 
-const metal = (n?: number | null) => {
+const wt = (n?: number | null) => {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return '';
   return v.toFixed(3);
@@ -81,8 +82,11 @@ const GalleryPage: React.FC = () => {
 
   const viewPhoto = viewIndex == null ? null : visible[viewIndex];
   const wtText = (photo: Photo) => {
-    const wt = metal(photo.metalWt);
-    return wt ? `Metal wt (gram): ${wt}` : '';
+    const finishing = wt(photo.finishingWt);
+    const wastage = wt(photo.metalWt);
+    return [finishing ? `Finishing wt: ${finishing}` : '', wastage ? `Wastage wt: ${wastage}` : '']
+      .filter(Boolean)
+      .join(' · ');
   };
 
   return (

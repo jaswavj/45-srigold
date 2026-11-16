@@ -118,22 +118,32 @@ public class SriImageService {
         add(dirs, configuredDir);
         add(dirs, System.getenv("SRI_IMAGES_DIR"));
         add(dirs, System.getenv("APP_IMAGES_DIR"));
-        Path catalinaBase = toPath(System.getProperty("catalina.base"));
-        Path catalinaHome = toPath(System.getProperty("catalina.home"));
         Path cwd = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath().normalize();
-        addSibling(dirs, catalinaBase, "sri_images");
-        addSibling(dirs, catalinaHome, "sri_images");
-        addSibling(dirs, catalinaBase, "webapps", "sri_images");
-        addSibling(dirs, catalinaHome, "webapps", "sri_images");
-        addSibling(dirs, cwd, "webapps", "sri_images");
-        addSibling(dirs, catalinaBase, "temp", "sri_images");
-        addSibling(dirs, catalinaHome, "temp", "sri_images");
         Path near = findNear(cwd);
         if (near != null) {
             dirs.add(near);
         }
+        Path catalinaBase = toPath(System.getProperty("catalina.base"));
+        Path catalinaHome = toPath(System.getProperty("catalina.home"));
+        addSibling(dirs, catalinaBase, "webapps", "sri_images");
+        addSibling(dirs, catalinaHome, "webapps", "sri_images");
+        addSibling(dirs, cwd, "webapps", "sri_images");
+        if (!isEphemeralCatalina(catalinaBase)) {
+            addSibling(dirs, catalinaBase, "sri_images");
+        }
+        if (!isEphemeralCatalina(catalinaHome)) {
+            addSibling(dirs, catalinaHome, "sri_images");
+        }
         dirs.add(Path.of(System.getProperty("java.io.tmpdir", "/tmp")).resolve("sri_images"));
         return dirs;
+    }
+
+    private static boolean isEphemeralCatalina(Path catalina) {
+        if (catalina == null) {
+            return true;
+        }
+        String path = catalina.toAbsolutePath().normalize().toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+        return path.contains("/temp/tomcat.") || path.contains("/tmp/tomcat.");
     }
 
     private static void add(List<Path> dirs, String value) {

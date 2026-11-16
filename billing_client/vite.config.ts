@@ -32,8 +32,7 @@ const serveSriImages = (req: IncomingMessage, res: ServerResponse, next: () => v
   }
   const filePath = path.join(sriImagesDir, fileName);
   if (!filePath.startsWith(sriImagesDir) || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-    res.statusCode = 404;
-    res.end();
+    next();
     return;
   }
   res.setHeader('Content-Type', contentTypeFor(fileName));
@@ -70,6 +69,12 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       host: true,
       open: base,
+      proxy: {
+        '/sri_images': {
+          target: env.VITE_API_BASE_URL || 'http://localhost:9098',
+          changeOrigin: true,
+        },
+      },
     },
     preview: {
       port: 5174,

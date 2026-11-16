@@ -10,5 +10,6 @@ public class GalleryPhotoData {
     private String customerName;
     private String itemName;
     private Double metalWt;
+    private Double finishingWt;
     private String fileName;
 }
