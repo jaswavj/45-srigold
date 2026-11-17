@@ -164,6 +164,10 @@ export const FinishedShareCard: React.FC<{
         ) : (
           <>
             <div className="gold-share-card" ref={cardRef}>
+              <div className="gold-share-watermark" aria-hidden="true">
+                <img src={logo} alt="" />
+              </div>
+              <div className="gold-share-fg">
               <div className="gold-share-top">
                 <img className="gold-share-mark" src={logo} alt="" />
                 <div>
@@ -236,6 +240,7 @@ export const FinishedShareCard: React.FC<{
                 )}
               </div>
               <div className="gold-share-thanks">Thank you for choosing {shop}</div>
+              </div>
             </div>
             <div className="gold-share-acts">
               <button className="mst-btn" type="button" disabled={busy} onClick={onClose}>Close</button>
