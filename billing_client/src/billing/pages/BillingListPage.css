@@ -1,7 +1,7 @@
 .gold-list-page .mst-title {
   font-size: 1.4rem;
   font-weight: 800;
-  color: #111827;
+  color: var(--color-text);
 }
 
 .gold-list-filters {
@@ -18,13 +18,13 @@
 .gold-list-filters .mst-fg label {
   font-size: 13px;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--color-text);
 }
 
 .gold-list-filters .mst-inp {
   font-size: 15px;
   font-weight: 600;
-  color: #111827;
+  color: var(--color-text);
   height: 40px;
 }
 
@@ -60,10 +60,63 @@
   color: #fff;
 }
 
+.gold-list-finished {
+  background: #ecfdf5;
+  border-color: #34d399;
+  color: #047857;
+}
+
+.gold-list-finished.on {
+  background: #047857;
+  border-color: #047857;
+  color: #fff;
+}
+
+.gold-list-name-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.gold-list-pay {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.gold-list-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.gold-list-badge.adv {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.gold-list-badge.due {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.gold-list-badge.off {
+  opacity: 0.42;
+}
+
 .gold-list-page .mst-card-h {
   font-size: 15px;
   font-weight: 800;
-  color: #111827;
+  color: var(--color-text);
 }
 
 .gold-list-hint {
@@ -73,34 +126,34 @@
 }
 
 .gold-list-table-wrap {
-  overflow: auto;
+  overflow: hidden;
 }
 
 .gold-list-table {
   width: 100%;
-  min-width: 1020px;
+  min-width: 0;
   table-layout: auto;
-  font-size: 15px;
-  color: #111827;
+  font-size: 14px;
+  color: var(--color-text);
 }
 
 .gold-list-table th,
 .gold-list-table td {
   vertical-align: middle;
   white-space: normal;
-  overflow: visible;
-  text-overflow: unset;
-  color: #111827;
+  overflow: hidden;
+  word-break: break-word;
+  color: var(--color-text);
   font-weight: 700;
-  font-size: 15px;
-  padding: 12px 12px;
-  line-height: 1.35;
+  font-size: 14px;
+  padding: 8px 8px;
+  line-height: 1.3;
 }
 
 .gold-list-table th {
   font-size: 13px;
   font-weight: 800;
-  color: #111827;
+  color: var(--color-text);
   letter-spacing: 0.2px;
 }
 
@@ -142,6 +195,12 @@
   color: #dc2626;
 }
 
+.gold-list-icon-wa {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #15803d;
+}
+
 .gold-list-modal-back {
   position: fixed;
   inset: 0;
@@ -165,7 +224,7 @@
   margin: 0 0 6px;
   font-size: 18px;
   font-weight: 800;
-  color: #111827;
+  color: var(--color-text);
 }
 
 .gold-list-modal p {
@@ -197,9 +256,14 @@
   line-height: 0;
 }
 
+.gold-list-table .gold-list-card-photos {
+  display: flex;
+  gap: 4px;
+}
+
 .gold-list-photo {
-  width: 56px;
-  height: 56px;
+  width: 44px;
+  height: 44px;
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--color-primary) 14%, transparent);
@@ -237,7 +301,7 @@
   border: 0;
   border-radius: 8px;
   background: #fff;
-  color: #111827;
+  color: var(--color-text);
   font-weight: 800;
   cursor: pointer;
 }
@@ -251,7 +315,7 @@
   border: 0;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.92);
-  color: #111827;
+  color: var(--color-text);
   font-size: 32px;
   line-height: 1;
   cursor: pointer;
@@ -266,12 +330,14 @@
 }
 
 .gold-list-photo-missing {
-  width: 78px;
-  font-size: 12px;
+  width: 44px;
+  height: 44px;
+  font-size: 9px;
   font-weight: 800;
   color: #9a3412;
   background: #fef3c7;
   border: 1.5px dashed #f59e0b;
+  text-align: center;
 }
 
 .gold-list-missing {
@@ -353,22 +419,30 @@
     font-weight: 800;
   }
 
+  .gold-list-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
   .gold-list-card-name {
     font-size: 18px;
     font-weight: 800;
-    color: #111827;
+    color: var(--color-text);
+    min-width: 0;
   }
 
   .gold-list-card-meta,
   .gold-list-card-item {
     font-size: 15px;
     font-weight: 700;
-    color: #1f2937;
+    color: var(--color-text);
     margin-top: 2px;
   }
 
   .gold-list-card-item {
-    color: #111827;
+    color: var(--color-text);
     font-size: 16px;
     margin-top: 6px;
   }
@@ -376,14 +450,24 @@
   .gold-list-card-wt {
     font-size: 14px;
     font-weight: 700;
-    color: #374151;
+    color: var(--color-text);
     margin-top: 2px;
+  }
+
+  .gold-list-card .gold-list-pay {
+    flex-shrink: 0;
+    margin: 0;
+  }
+
+  .gold-list-card .gold-list-badge {
+    font-size: 12px;
+    padding: 3px 8px;
   }
 
   .gold-list-card-cost {
     font-size: 20px;
     font-weight: 800;
-    color: #111827;
+    color: var(--color-text);
     margin: 6px 0 8px;
   }
 
@@ -406,4 +490,86 @@
     height: 36px;
     font-size: 13px;
   }
+}
+
+html[data-theme="dark"] .gold-list-unfinished {
+  background: #3a2a18;
+  border-color: #f97316;
+  color: #fdba74;
+}
+
+html[data-theme="dark"] .gold-list-finished {
+  background: #163326;
+  border-color: #34d399;
+  color: #86efac;
+}
+
+html[data-theme="dark"] .gold-list-badge.adv {
+  background: #163326;
+  color: #86efac;
+}
+
+html[data-theme="dark"] .gold-list-badge.due {
+  background: #4a2428;
+  color: #fca5a5;
+}
+
+html[data-theme="dark"] .gold-list-hint {
+  color: #fdba74;
+}
+
+html[data-theme="dark"] .gold-list-icon-edit {
+  background: color-mix(in srgb, var(--color-primary) 18%, var(--color-bg-elevated));
+}
+
+html[data-theme="dark"] .gold-list-icon-del {
+  background: #3a2224;
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+html[data-theme="dark"] .gold-list-icon-wa {
+  background: #163326;
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+html[data-theme="dark"] .gold-list-modal {
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .gold-list-modal p {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .gold-list-photo-missing,
+html[data-theme="dark"] .gold-list-missing,
+html[data-theme="dark"] .gold-list-missing-wt,
+html[data-theme="dark"] .gold-list-table tr.gold-list-missing-wt td:nth-child(6),
+html[data-theme="dark"] .gold-list-table tr.gold-list-missing-wt td:nth-child(7),
+html[data-theme="dark"] .gold-list-wt-pending {
+  background: #3a2a18;
+  color: #fdba74;
+  border-color: #f59e0b;
+}
+
+html[data-theme="dark"] .gold-list-empty {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .gold-list-card {
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .gold-list-card-wt {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .gold-list-card.gold-list-missing,
+html[data-theme="dark"] .gold-list-card.gold-list-missing-wt {
+  background: #3a2a18;
+  border-color: #f59e0b;
 }

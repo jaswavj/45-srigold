@@ -15,11 +15,8 @@ import {
   YAxis,
 } from 'recharts';
 import { billingApi } from '../../../api/billing/billing-api-service';
-import { handleThermalDispatch } from '../../../api/billing/local-print-agent';
 import { statsApi, statsData, statsError } from '../../../api/statistics/statistics-api-service';
-import ListPagination from '../../components/ListPagination';
-import { normalizePage } from '../../components/ListPagination';
-import { openBillWhatsApp } from '../../components/whatsAppBill';
+import { routerPathNames } from '../../../routes/routerPathNames';
 import { useBillDetail } from '../account-reports/BillDetailModal';
 import '../admin/MonthlyBills.css';
 import '../credit/Credit.css';
@@ -27,20 +24,15 @@ import '../master/Master.css';
 import './Stats.css';
 
 type Day = { date: string; sales: number; expense: number };
-type BillCard = {
+type UnfinishedRow = {
   billId: number;
   billDisplay: string;
-  customerName: string;
-  customerPhone: string;
   date: string;
   time: string;
-  payable: number;
-  paymentMode: number;
-  isTaxBill: number;
-  stateLabel: string;
-  exchanged?: boolean;
-  returned?: boolean;
-  exchPoint?: number;
+  customerName: string;
+  phone: string;
+  itemName: string;
+  itemSize: string;
 };
 type Dash = {
   year: number; month: number; label: string;
@@ -50,7 +42,6 @@ type Dash = {
   profit: number; lastProfit: number; profitPct: number;
   netProfit: number; todaySales: number; todayBills: number; daily: Day[];
   exchPoint?: number;
-  bills?: BillCard[];
 };
 
 const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -66,13 +57,38 @@ const compact = (v: number) => {
   return String(Math.round(v));
 };
 
-const inr = (v?: number) =>
-  `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
 const fmtDate = (d: string) => {
   const dt = new Date(`${String(d).slice(0, 10)}T00:00:00`);
   if (Number.isNaN(dt.getTime())) return d;
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const startOfDay = (d: Date) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+};
+
+const daysSinceBill = (dateStr: string) => {
+  const billed = startOfDay(new Date(`${String(dateStr).slice(0, 10)}T00:00:00`));
+  if (Number.isNaN(billed.getTime())) return 0;
+  return Math.floor((startOfDay(new Date()).getTime() - billed.getTime()) / 86400000);
+};
+
+const overdueRows = (rows: UnfinishedRow[], minDays: number, maxDays?: number) =>
+  rows.filter((row) => {
+    const days = daysSinceBill(row.date);
+    if (days < minDays) return false;
+    if (maxDays != null && days > maxDays) return false;
+    return true;
+  });
+
+const whoLine = (row: UnfinishedRow) => {
+  const name = row.customerName || 'No name';
+  const phone = row.phone ? ` · ${row.phone}` : '';
+  const item = row.itemName ? ` · ${row.itemName}` : '';
+  const days = daysSinceBill(row.date);
+  return `${name}${phone}${item} · ${days} day${days === 1 ? '' : 's'}`;
 };
 
 const fmtTime = (t: string) => {
@@ -138,42 +154,52 @@ const StatsDashboardPage: React.FC = () => {
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [data, setData] = useState<Dash | null>(null);
-  const [bills, setBills] = useState<BillCard[]>([]);
-  const [billsTotal, setBillsTotal] = useState(0);
-  const [billPage, setBillPage] = useState(0);
-  const BILL_PAGE_SIZE = 12;
+  const [unfinished, setUnfinished] = useState<UnfinishedRow[]>([]);
   const [pieIndex, setPieIndex] = useState(0);
+  const [overdueAlert, setOverdueAlert] = useState<{ days: 5 | 8; rows: UnfinishedRow[] } | null>(null);
+  const [overdueEight, setOverdueEight] = useState<UnfinishedRow[]>([]);
 
-  const loadBills = async (y: number, m: number, p = billPage) => {
+  const loadUnfinished = async () => {
     try {
-      const res: any = await billingApi.monthBills(y, m, p, BILL_PAGE_SIZE);
-      if (res?.success) {
-        const pg = normalizePage<BillCard>(res.data);
-        setBills(pg.items);
-        setBillsTotal(pg.total);
-        setBillPage(pg.page);
-      } else {
-        setBills([]);
-        setBillsTotal(0);
-      }
+      const res: any = await billingApi.itemList(undefined, undefined, true);
+      const rows: UnfinishedRow[] = Array.isArray(res?.data) ? res.data : [];
+      setUnfinished(rows);
+      return rows;
     } catch {
-      setBills([]);
-      setBillsTotal(0);
+      setUnfinished([]);
+      return [] as UnfinishedRow[];
     }
   };
 
-  const load = async (y = year, m = month) => {
+  const openOverdueAlerts = (rows: UnfinishedRow[]) => {
+    const five = overdueRows(rows, 5, 7);
+    const eight = overdueRows(rows, 8);
+    setOverdueEight(eight);
+    if (five.length) setOverdueAlert({ days: 5, rows: five });
+    else if (eight.length) setOverdueAlert({ days: 8, rows: eight });
+    else setOverdueAlert(null);
+  };
+
+  const closeOverdueAlert = () => {
+    if (overdueAlert?.days === 5 && overdueEight.length) {
+      setOverdueAlert({ days: 8, rows: overdueEight });
+      return;
+    }
+    setOverdueAlert(null);
+  };
+
+  const load = async (y = year, m = month, withAlerts = false) => {
     try {
       const dash = statsData<Dash>(await statsApi.dashboard(y, m));
       setData(dash);
-      setBillPage(0);
-      await loadBills(y, m, 0);
+      const rows = await loadUnfinished();
+      if (withAlerts) openOverdueAlerts(rows);
     } catch (err) {
       toast.error(statsError(err, 'Could not load dashboard'));
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(year, month, true); }, []);
 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() + 1 - i);
   const daily = data?.daily || [];
@@ -196,22 +222,12 @@ const StatsDashboardPage: React.FC = () => {
   const barMax = dayCount > 28 ? 7 : dayCount > 20 ? 9 : dayCount > 14 ? 12 : 16;
   const xTickInterval = dayCount > 24 ? 2 : dayCount > 16 ? 1 : 0;
 
-  const printBill = async (billNo: string) => {
-    try {
-      const res: any = await billingApi.dispatchPrint(billNo);
-      const result = await handleThermalDispatch(res, (no) => {
-        navigate(`/app/billing/print/${encodeURIComponent(no || billNo)}`);
-      });
-      if (result === 'printed' || result === 'local') {
-        toast.success('Receipt printed');
-      }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.data?.error || err?.message || 'Print failed');
+  const editBill = (row: UnfinishedRow) => {
+    if (!row.billDisplay) {
+      toast.error('Bill number missing');
+      return;
     }
-  };
-
-  const whatsApp = (card: BillCard) => {
-    void openBillWhatsApp(card).catch(() => toast.error('Could not open WhatsApp'));
+    navigate(`${routerPathNames.billing}?edit=${encodeURIComponent(row.billDisplay)}`);
   };
 
   return (
@@ -359,60 +375,67 @@ const StatsDashboardPage: React.FC = () => {
             </div>
           </div>
           <div className="mst-card" style={{ marginTop: 12 }}>
-            <div className="mst-card-h">Bills — {data.label} ({billsTotal})</div>
+            <div className="mst-card-h">Unfinished Bills ({unfinished.length})</div>
             <div className="mst-card-b">
-              {bills.length === 0 ? (
-                <div className="mst-empty">No bills in this month.</div>
+              {unfinished.length === 0 ? (
+                <div className="mst-empty">No bills with finishing wt not entered.</div>
               ) : (
                 <div className="mb-cards">
-                  {bills.map((card) => (
-                    <article className="mb-card" key={card.billId}>
+                  {unfinished.map((row, i) => (
+                    <article className="mb-card gold-dash-unfinished" key={`${row.billId}-${i}`}>
                       <div className="mb-card-body">
                         <div>
-                          <h3 className="mb-name">{card.customerName || 'Walk-in'}</h3>
-                          <p className="mb-invoice">Sales Invoice #{card.billDisplay}</p>
-                          <p className="mb-meta">
-                            {fmtDate(card.date)} · {fmtTime(card.time)}
-                            {card.customerPhone ? ` · ${card.customerPhone}` : ''}
+                          <h3 className="mb-name">{row.customerName || '-'}</h3>
+                          <p className="mb-invoice">
+                            {row.itemName || '-'}
+                            {row.itemSize ? ` · ${row.itemSize}` : ''}
+                            {row.billDisplay ? ` · #${row.billDisplay}` : ''}
                           </p>
-                          {(card.isTaxBill === 1 || card.stateLabel || card.exchanged || card.returned) && (
-                          <div className="mb-chips">
-                            {card.isTaxBill === 1 && <span className="mb-chip">GST</span>}
-                            {card.stateLabel && <span className="mb-chip">{card.stateLabel}</span>}
-                            {card.exchanged && <span className="mb-chip exch">Exchanged</span>}
-                            {card.returned && <span className="mb-chip ret">Returned</span>}
-                          </div>
-                          )}
+                          <p className="mb-meta">
+                            {fmtDate(row.date)} · {fmtTime(row.time)}
+                            {row.phone ? ` · ${row.phone}` : ''}
+                          </p>
                         </div>
-                        <div className="mb-amt">
-                          {inr(Number(card.payable || 0) + Number(card.exchPoint || 0))}
-                          {Number(card.exchPoint) > 0 && <small>Exch. {inr(card.exchPoint)}</small>}
-                        </div>
+                        <div className="mb-amt">Not added</div>
                       </div>
-                      <div className="mb-actions mb-actions-3">
-                        <button className="mb-act" type="button" onClick={() => openBill(card.billDisplay)}>
+                      <div className="mb-actions">
+                        <button className="mb-act" type="button" onClick={() => openBill(row.billDisplay)}>
                           <i className="fas fa-eye" /> View
                         </button>
-                        <button className="mb-act mb-act-print" type="button" onClick={() => printBill(card.billDisplay)}>
-                          <i className="fas fa-print" /> Print
-                        </button>
-                        <button className="mb-act mb-act-wa" type="button" onClick={() => whatsApp(card)}>
-                          <i className="fab fa-whatsapp" /> WhatsApp
+                        <button className="mb-act mb-act-print" type="button" onClick={() => editBill(row)}>
+                          <i className="fas fa-pen" /> Edit
                         </button>
                       </div>
                     </article>
                   ))}
                 </div>
               )}
-              <ListPagination
-                page={billPage}
-                size={BILL_PAGE_SIZE}
-                total={billsTotal}
-                onChange={(p) => loadBills(year, month, p)}
-              />
             </div>
           </div>
         </>
+      )}
+      {overdueAlert && (
+        <div className="st-overdue-back" onClick={closeOverdueAlert}>
+          <div className={`st-overdue ${overdueAlert.days === 8 ? 'late' : ''}`} onClick={(e) => e.stopPropagation()}>
+            <h3>
+              {overdueAlert.days === 8 ? 'Unfinished 8 days and above' : 'Unfinished 5 to 7 days'}
+            </h3>
+            <p>
+              {overdueAlert.rows.length} bill{overdueAlert.rows.length === 1 ? '' : 's'} still without finishing wt
+              {overdueAlert.days === 5 && overdueEight.length > 0 ? '. Next alert: 8 days and above.' : '.'}
+            </p>
+            <ul>
+              {overdueAlert.rows.map((row, i) => (
+                <li key={`${row.billId}-${i}`}>{whoLine(row)}</li>
+              ))}
+            </ul>
+            <div className="st-overdue-acts">
+              <button className="mst-btn mst-btn-primary" type="button" onClick={closeOverdueAlert}>
+                {overdueAlert.days === 5 && overdueEight.length > 0 ? 'Next' : 'OK'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {billModal}
     </div>

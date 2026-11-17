@@ -39,6 +39,12 @@ public class CreditService {
                         "WHERE a.balance > 0 ORDER BY a.balance DESC",
                 this::mapDueParty
         ));
+        data.setAdvanceList(jdbcTemplate.query(
+                "SELECT a.customer_id, b.name, b.phone_number, a.advance " +
+                        "FROM customer_account a JOIN customers b ON b.id = a.customer_id " +
+                        "WHERE a.advance > 0 ORDER BY a.advance DESC",
+                this::mapDueParty
+        ));
         return data;
     }
 
@@ -49,6 +55,12 @@ public class CreditService {
                 "SELECT a.supplier_id, b.name, b.phone_number, a.balance " +
                         "FROM supplier_account a JOIN prod_supplier b ON b.id = a.supplier_id " +
                         "WHERE a.balance > 0 ORDER BY a.balance DESC",
+                this::mapDueParty
+        ));
+        data.setAdvanceList(jdbcTemplate.query(
+                "SELECT a.supplier_id, b.name, b.phone_number, a.advance " +
+                        "FROM supplier_account a JOIN prod_supplier b ON b.id = a.supplier_id " +
+                        "WHERE a.advance > 0 ORDER BY a.advance DESC",
                 this::mapDueParty
         ));
         return data;
@@ -261,7 +273,7 @@ public class CreditService {
                     customerId, 0L, request, uid,
                     "SELECT balance FROM customer_account WHERE customer_id = ? FOR UPDATE",
                     "INSERT INTO prod_bill_due (customer_id, amount, cash_paid, bank_paid, balance, pay_mode, pay_type, txn_type, notes, uid, date, time) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'COLLECTION', NULL, ?, CURRENT_DATE(), CURRENT_TIME())",
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'COLLECTION', ?, ?, CURRENT_DATE(), CURRENT_TIME())",
                     "UPDATE customer_account SET balance = ? WHERE customer_id = ?",
                     2, "No account balance due to collect."
             );
@@ -297,7 +309,7 @@ public class CreditService {
                     0L, supplierId, request, uid,
                     "SELECT balance FROM supplier_account WHERE supplier_id = ? FOR UPDATE",
                     "INSERT INTO prod_supplier_due (supplier_id, amount, cash_paid, bank_paid, balance, pay_mode, pay_type, txn_type, notes, uid, date, time) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'COLLECTION', NULL, ?, CURRENT_DATE(), CURRENT_TIME())",
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'COLLECTION', ?, ?, CURRENT_DATE(), CURRENT_TIME())",
                     "UPDATE supplier_account SET balance = ? WHERE supplier_id = ?",
                     6, "No account balance due to pay."
             );
@@ -372,9 +384,17 @@ public class CreditService {
         if (amount <= 0) {
             throw new RuntimeException("Payment amount must be greater than zero.");
         }
-        double newBalance = Math.max(0, currentBalance - amount);
+        double newBalance = Math.max(0, round3(currentBalance - amount));
         int payMode = nzInt(request.getPayMode(), 1);
         int payType = nzInt(request.getPayType(), 0);
+        String notes = noteOr(request.getNotes(), "");
+        if (customerId != null && customerId > 0) {
+            String applied = applyCollectionToBills(customerId, amount, cash, bank, payMode, payType, uid);
+            if (!applied.isEmpty()) {
+                notes = notes.isEmpty() ? applied : notes + " | " + applied;
+            }
+        }
+        final String savedNotes = notes.isEmpty() ? null : notes;
         long dueId = insertDue(insertSql, ps -> {
             ps.setLong(1, partyId);
             ps.setDouble(2, amount);
@@ -383,11 +403,72 @@ public class CreditService {
             ps.setDouble(5, newBalance);
             ps.setInt(6, payMode);
             ps.setInt(7, payType);
-            ps.setLong(8, uid);
+            ps.setString(8, savedNotes);
+            ps.setLong(9, uid);
         });
         insertLedger(ledgerType, dueId, customerId, supplierId, payMode, amount, cash, bank, payType, uid);
         jdbcTemplate.update(updateSql, newBalance, partyId);
         return result("COLLECTION", newBalance, null);
+    }
+
+    /** Apply collected wt to unpaid bills oldest first, so each bill's remaining balance is known. */
+    private String applyCollectionToBills(long customerId, double amount, double cash, double bank, int payMode, int payType, Long uid) {
+        List<Map<String, Object>> bills = jdbcTemplate.queryForList(
+                "SELECT id, bill_display, IFNULL(payable, 0) AS payable, IFNULL(paid, 0) AS paid " +
+                        "FROM prod_bill WHERE customerId = ? AND IFNULL(is_cancelled, 0) = 0 " +
+                        "AND (IFNULL(payable, 0) - IFNULL(paid, 0)) > 0.0005 " +
+                        "ORDER BY date ASC, time ASC, id ASC",
+                customerId
+        );
+        double remaining = round3(amount);
+        double cashLeft = round3(cash);
+        double bankLeft = round3(bank);
+        List<String> applied = new ArrayList<>();
+        for (Map<String, Object> bill : bills) {
+            if (remaining <= 0.0005) {
+                break;
+            }
+            long billId = toLong(bill.get("id"));
+            double payable = round3(toDouble(bill.get("payable")));
+            double paid = round3(toDouble(bill.get("paid")));
+            double due = round3(Math.max(0, payable - paid));
+            if (due <= 0.0005) {
+                continue;
+            }
+            double apply = round3(Math.min(remaining, due));
+            double applyCash = round3(Math.min(cashLeft, apply));
+            double applyBank = round3(Math.min(bankLeft, Math.max(0, apply - applyCash)));
+            if (round3(applyCash + applyBank) < apply) {
+                applyCash = round3(apply - applyBank);
+            }
+            double newPaid = round3(paid + apply);
+            double newDue = round3(Math.max(0, payable - newPaid));
+            jdbcTemplate.update(
+                    "UPDATE prod_bill SET paid = ?, balance = ?, currentBalance = ?, is_balance = ? WHERE id = ?",
+                    newPaid, newDue, newDue, newDue > 0.0005 ? 1 : 0, billId
+            );
+            int payRows = jdbcTemplate.update(
+                    "UPDATE prod_bill_payment SET cash = IFNULL(cash, 0) + ?, bank = IFNULL(bank, 0) + ? WHERE bill_id = ?",
+                    applyCash, applyBank, billId
+            );
+            if (payRows == 0) {
+                jdbcTemplate.update(
+                        "INSERT INTO prod_bill_payment (bill_id, cash, bank, paymentType) VALUES (?, ?, ?, ?)",
+                        billId, applyCash, applyBank, payType
+                );
+            }
+            jdbcTemplate.update(
+                    "INSERT INTO prod_bill_due_collection (bill_id, balance, paid, finalBalance, mode, bankOption, uid, collectDate, collectTime, date, time) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, DATE_FORMAT(NOW(), '%Y-%m-%d'), DATE_FORMAT(NOW(), '%H:%i:%s'), CURRENT_DATE(), CURRENT_TIME())",
+                    billId, due, apply, newDue, payMode, payType, uid == null ? 0 : uid
+            );
+            remaining = round3(remaining - apply);
+            cashLeft = round3(Math.max(0, cashLeft - applyCash));
+            bankLeft = round3(Math.max(0, bankLeft - applyBank));
+            String billNo = bill.get("bill_display") == null ? "#" + billId : String.valueOf(bill.get("bill_display"));
+            applied.add(billNo + " " + String.format("%.3f", apply));
+        }
+        return applied.isEmpty() ? "" : String.join(", ", applied);
     }
 
     private Double lockBalance(String sql, Long partyId) {
@@ -554,6 +635,24 @@ public class CreditService {
         } catch (NumberFormatException ex) {
             return 0;
         }
+    }
+
+    private long toLong(Object value) {
+        if (value == null) {
+            return 0L;
+        }
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(value.toString());
+        } catch (NumberFormatException ex) {
+            return 0L;
+        }
+    }
+
+    private double round3(double value) {
+        return Math.round(value * 1000d) / 1000d;
     }
 
     @FunctionalInterface

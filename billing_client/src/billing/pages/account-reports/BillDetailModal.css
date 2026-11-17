@@ -334,3 +334,52 @@
     height: 44px;
   }
 }
+
+html[data-theme="dark"] .gbd-sheet,
+html[data-theme="dark"] .gbd-head {
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .gbd-head h3,
+html[data-theme="dark"] .gbd-party strong,
+html[data-theme="dark"] .gbd-item-name,
+html[data-theme="dark"] .gbd-item-amt,
+html[data-theme="dark"] .gbd-totals strong,
+html[data-theme="dark"] .gbd-paymix b,
+html[data-theme="dark"] .gbd-pay strong,
+html[data-theme="dark"] .gbd-pay b,
+html[data-theme="dark"] .gbd-close {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .gbd-head p,
+html[data-theme="dark"] .gbd-party span,
+html[data-theme="dark"] .gbd-item-wt,
+html[data-theme="dark"] .gbd-empty,
+html[data-theme="dark"] .gbd-totals span,
+html[data-theme="dark"] .gbd-paymix span,
+html[data-theme="dark"] .gbd-pay span {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .gbd-close {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .gbd-party,
+html[data-theme="dark"] .gbd-totals > div,
+html[data-theme="dark"] .gbd-paymix > div,
+html[data-theme="dark"] .gbd-pay {
+  background: var(--color-bg-elevated);
+}
+
+html[data-theme="dark"] .gbd-item {
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .gbd-totals .due strong {
+  color: #fca5a5;
+}

@@ -12,8 +12,11 @@ public class BillingListItemData {
     private String phone;
     private String itemName;
     private String itemSize;
+    private Double purity;
     private Double metalWt;
     private Double cost;
+    private Double paid;
+    private Double payable;
     private String image1;
     private String image2;
     private Boolean missingImage;

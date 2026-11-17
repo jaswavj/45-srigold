@@ -35,6 +35,86 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
+.gold-dash-unfinished {
+  background: #fff4e5;
+  border-color: #f59e0b;
+}
+
+.gold-dash-unfinished .mb-amt {
+  color: #9a3412;
+  font-size: 14px;
+}
+
+.st-overdue-back {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.st-overdue {
+  width: min(440px, 100%);
+  max-height: min(80vh, 560px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 18px 18px 16px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+  border: 2px solid #f59e0b;
+}
+
+.st-overdue.late {
+  border-color: #dc2626;
+}
+
+.st-overdue h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #9a3412;
+}
+
+.st-overdue.late h3 {
+  color: #b91c1c;
+}
+
+.st-overdue p {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.st-overdue ul {
+  margin: 0;
+  padding: 0 0 0 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.st-overdue li {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.35;
+}
+
+.st-overdue-acts {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.st-overdue-acts .mst-btn {
+  min-width: 88px;
+  height: 40px;
+}
+
 .st-kpis-6 {
   grid-template-columns: repeat(3, 1fr);
 }
@@ -434,4 +514,34 @@
   .st-charts { gap: 10px; }
   .st-pie-legend { gap: 4px; }
   .st-bar-line { grid-template-columns: 62px minmax(0, 1fr) auto; font-size: 11px; }
+}
+
+html[data-theme="dark"] .gold-dash-unfinished {
+  background: #3a2a18;
+  border-color: #f59e0b;
+}
+
+html[data-theme="dark"] .gold-dash-unfinished .mb-amt {
+  color: #fdba74;
+}
+
+html[data-theme="dark"] .st-overdue {
+  background: var(--color-bg-surface);
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .st-overdue h3 {
+  color: #fdba74;
+}
+
+html[data-theme="dark"] .st-overdue.late h3 {
+  color: #fca5a5;
+}
+
+html[data-theme="dark"] .st-overdue p {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .st-overdue li {
+  color: var(--color-text);
 }

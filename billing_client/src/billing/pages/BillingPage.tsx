@@ -51,6 +51,7 @@ type Line = {
   image2: string;
   metalWt: number;
   itemSize: string;
+  purity: number;
 };
 
 type Customer = {
@@ -59,11 +60,13 @@ type Customer = {
   phone: string;
   isEligibleForCommission: number;
   exchangePoint: number;
+  advance?: number;
 };
 
 const api = new BillingApiService();
 const ordersApi = new OrderListApiService();
 const money = (n: number) => (Number.isFinite(n) ? n.toFixed(3) : '0.000');
+const wastage = (n: number) => (Number.isFinite(n) ? n.toFixed(2) : '0.00');
 const rupee = (n: number) => `₹${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
 const parseWt = (v: string) => {
   const n = parseFloat(v);
@@ -71,6 +74,13 @@ const parseWt = (v: string) => {
 };
 const missingLineWt = (line: Pick<Line, 'price' | 'metalWt'>) =>
   !(Number(line.price) > 0) && !(Number(line.metalWt) > 0);
+
+const BASE_PURITY = 92;
+const FINE_DIVISOR = 99.5;
+const calcWastage = (finishing: number, purity: number) => {
+  if (!(finishing > 0) || !(purity > 0)) return 0;
+  return Math.max(0, Math.round((finishing * (purity - BASE_PURITY) / FINE_DIVISOR) * 100) / 100);
+};
 
 const CafeItemIcon: React.FC = () => (
   <svg className="cafe-item-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -90,7 +100,7 @@ const ImageSlot: React.FC<{
   onPick: (file: File) => void;
   onClear: () => void;
 }> = ({ fileName, busy, onPick, onClear }) => (
-  <label className={`pos-img-slot${fileName ? ' has' : ''}${busy ? ' busy' : ''}`}>
+  <label className={`pos-img-slot${fileName ? ' has' : ''}${busy ? ' busy' : ''}`} aria-busy={busy}>
     <input
       type="file"
       accept="image/*"
@@ -104,20 +114,22 @@ const ImageSlot: React.FC<{
     {fileName ? (
       <>
         <img src={sriImageUrl(fileName)} alt="" />
-        <button
-          type="button"
-          className="pos-img-x"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onClear();
-          }}
-        >
-          ×
-        </button>
+        {!busy && (
+          <button
+            type="button"
+            className="pos-img-x"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClear();
+            }}
+          >
+            ×
+          </button>
+        )}
       </>
     ) : (
-      <span>{busy ? '…' : '+'}</span>
+      <span>+</span>
     )}
   </label>
 );
@@ -143,6 +155,10 @@ const BillingPage: React.FC = () => {
   const [custIndex, setCustIndex] = useState(0);
   const [exchangePoint, setExchangePoint] = useState(0);
   const [exchangeUsed, setExchangeUsed] = useState(0);
+  const [customerAdvance, setCustomerAdvance] = useState(0);
+  const [advanceUsed, setAdvanceUsed] = useState(0);
+  const savedBillExtraRef = useRef(0);
+  const loadedCustomerIdRef = useRef(0);
   const [bypassCap, setBypassCap] = useState(false);
   const [isTaxBill, setIsTaxBill] = useState(false);
   const [isCommission, setIsCommission] = useState(false);
@@ -159,13 +175,16 @@ const BillingPage: React.FC = () => {
   const [draftImage2, setDraftImage2] = useState('');
   const [draftMetalWt, setDraftMetalWt] = useState('');
   const [draftSize, setDraftSize] = useState('');
+  const [draftPurity, setDraftPurity] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const sizeRef = useRef<HTMLInputElement>(null);
   const metalWtRef = useRef<HTMLInputElement>(null);
   const finishingRef = useRef<HTMLInputElement>(null);
+  const purityRef = useRef<HTMLInputElement>(null);
   const hitRef = useRef<HTMLButtonElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
+  const custNameRef = useRef<HTMLInputElement>(null);
   const custPhoneRef = useRef<HTMLInputElement>(null);
   const taxBillRef = useRef<HTMLInputElement>(null);
   const custHitRef = useRef<HTMLButtonElement>(null);
@@ -177,7 +196,7 @@ const BillingPage: React.FC = () => {
   const [extraDisc, setExtraDisc] = useState('0');
   const [mode, setMode] = useState('1');
   const [payType, setPayType] = useState('1');
-  const [cashPaid, setCashPaid] = useState('0');
+  const [cashPaid, setCashPaid] = useState('');
   const [bankPaid, setBankPaid] = useState('0');
   const [balance, setBalance] = useState('0');
   const [payEpoch, setPayEpoch] = useState(0);
@@ -276,8 +295,18 @@ const BillingPage: React.FC = () => {
           image2: item.image2 || '',
           metalWt: Number(item.metalWt) || 0,
           itemSize: item.itemSize || '',
+          purity: Number(item.purity) || 0,
         })));
         setLineKey(items.length + 1);
+        const first = items[0];
+        setSearch(first?.name || '');
+        setPending(null);
+        setPrice(Number(first?.price) > 0 ? money(first.price) : '');
+        setDraftMetalWt(Number(first?.metalWt) > 0 ? wastage(first.metalWt) : '');
+        setDraftSize(first?.itemSize || '');
+        setDraftPurity(Number(first?.purity) > 0 ? String(first.purity) : '');
+        setDraftImage1(first?.image1 || '');
+        setDraftImage2(first?.image2 || '');
         const empty = (v?: string) => (!v || v === '-' ? '' : v);
         setCustomerName(empty(data.customerName));
         setCustomerPhone(empty(data.customerPhone));
@@ -287,10 +316,17 @@ const BillingPage: React.FC = () => {
         setExtraDisc('0');
         setMode('1');
         setPayType('1');
-        setCashPaid(money((data.cashPaid || 0) + (data.bankPaid || 0)));
+        setCashPaid((() => {
+          const paid = (data.cashPaid || 0) + (data.bankPaid || 0);
+          return paid > 0.0005 ? money(paid) : '';
+        })());
         setBankPaid('0');
         setBalance(money(data.balance || 0));
         setExchangePoint(data.exchangePoint || 0);
+        setCustomerAdvance(Number(data.advance) || 0);
+        setAdvanceUsed(0);
+        loadedCustomerIdRef.current = data.customerId || 0;
+        savedBillExtraRef.current = Math.max(0, ((data.cashPaid || 0) + (data.bankPaid || 0)) - (data.payable || 0));
         toast.info(`Editing bill ${data.billDisplay}`);
       } catch (err: any) {
         if (!live) return;
@@ -301,20 +337,25 @@ const BillingPage: React.FC = () => {
   }, [searchParams]);
 
   const totals = useMemo(() => {
-    const finishingTotal = lines.reduce((s, l) => s + (Number(l.price) || 0), 0);
-    const wastageTotal = lines.reduce((s, l) => s + (Number(l.metalWt) || 0), 0);
+    const finishingTotal = parseWt(price);
+    const wastageTotal = parseWt(draftMetalWt);
     const grandTotal = finishingTotal + wastageTotal;
     return { priceTotal: finishingTotal, finishingTotal, wastageTotal, discountTotal: 0, commissionTotal: 0, grandTotal };
-  }, [lines]);
+  }, [price, draftMetalWt]);
 
   const extra = 0;
   const exchCredit = 0;
   const payable = Math.max(0, totals.grandTotal);
   const cashAmt = parseFloat(cashPaid) || 0;
-  const paidAmt = cashAmt;
+  const usedAdvance = Math.max(0, Number(advanceUsed) || 0);
+  const paidAmt = cashAmt + usedAdvance;
   const dueAmt = Math.max(0, payable - paidAmt);
   const extraAmt = Math.max(0, paidAmt - payable);
-  const weightsPending = lines.length > 0 && payable < 0.001;
+  const weightsPending = !!search.trim() && payable < 0.001;
+  const usableAdvance = Math.max(
+    0,
+    customerAdvance - (customerId > 0 && customerId === loadedCustomerIdRef.current ? savedBillExtraRef.current : 0)
+  );
   const missingName = !customerName.trim() || customerName.trim() === '-';
   const missingPhone = !customerPhone.trim() || customerPhone.trim() === '-';
   const needsCustomer = missingName || missingPhone;
@@ -340,7 +381,7 @@ const BillingPage: React.FC = () => {
     if (!autoPay.current) return;
     setMode('1');
     setPayType('1');
-    setCashPaid(money(payable));
+    setCashPaid(payable > 0.0005 ? money(payable) : '');
     setBankPaid('0');
     setBalance('0');
   }, [payable, payEpoch]);
@@ -348,6 +389,13 @@ const BillingPage: React.FC = () => {
   useEffect(() => {
     setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0))));
   }, [payable, cashPaid]);
+
+  useEffect(() => {
+    const fin = parseWt(price);
+    const pur = parseWt(draftPurity);
+    if (!(fin > 0) || !(pur > 0)) return;
+    setDraftMetalWt(wastage(calcWastage(fin, pur)));
+  }, [price, draftPurity]);
 
   useEffect(() => {
     custHitRef.current?.scrollIntoView({ block: 'nearest' });
@@ -397,6 +445,8 @@ const BillingPage: React.FC = () => {
     setCustomerPhone(c.phone === '-' ? '' : c.phone);
     setExchangePoint(c.exchangePoint || 0);
     setExchangeUsed(0);
+    setCustomerAdvance(Number(c.advance) || 0);
+    setAdvanceUsed(0);
     clearCustSuggest();
   };
 
@@ -439,6 +489,7 @@ const BillingPage: React.FC = () => {
             onClick={() => pickCustomer(c)}
           >
             {c.name} {c.phone && c.phone !== '-' ? `· ${c.phone}` : ''}
+            {Number(c.advance) > 0.001 ? ` · Adv ${money(Number(c.advance))}` : ''}
           </button>
         ))}
       </div>
@@ -489,6 +540,7 @@ const BillingPage: React.FC = () => {
   };
 
   const onSearchChange = async (value: string) => {
+    markSaleDraft();
     setSearch(value);
     if (pending && value.trim().toLowerCase() !== pending.name.toLowerCase()) {
       setPending(null);
@@ -616,6 +668,7 @@ const BillingPage: React.FC = () => {
       image2: '',
       metalWt: 0,
       itemSize: '',
+      purity: 0,
     };
   };
 
@@ -628,6 +681,7 @@ const BillingPage: React.FC = () => {
     }
     const unitPrice = parseWt(price);
     const metalWt = parseWt(draftMetalWt);
+    const purity = parseWt(draftPurity);
     markSaleDraft();
     const stamp = linesStampRef.current;
     setLines((prev) => {
@@ -635,7 +689,7 @@ const BillingPage: React.FC = () => {
       const key = prev.reduce((m, l) => Math.max(m, l.key), 0) + 1;
       const itemSize = draftSize.trim();
       const line: Line = pending && matchesPending(itemName, pending)
-        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt, itemSize }
+        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt, itemSize, purity }
         : {
           key,
           productId: 0,
@@ -656,6 +710,7 @@ const BillingPage: React.FC = () => {
           image2: draftImage2,
           metalWt,
           itemSize,
+          purity,
         };
       return [...prev, line];
     });
@@ -670,6 +725,7 @@ const BillingPage: React.FC = () => {
     setDraftImage2('');
     setDraftMetalWt('');
     setDraftSize('');
+    setDraftPurity('');
     setNameHits([]);
     searchRef.current?.focus();
   };
@@ -798,21 +854,59 @@ const BillingPage: React.FC = () => {
     setLines((prev) => prev.map((line) => (line.key === key ? { ...line, itemSize: value } : line)));
   };
 
-  const collectProducts = () =>
-    lines.map((l) => ({
-      id: l.productId,
-      name: l.name,
-      qty: l.qty || 1,
-      price: l.price,
-      discount: l.discount,
-      total: isCommission ? l.total : l.qty * l.price - l.discount,
-      batchId: l.batchId,
-      commission: isCommission ? l.commissionPer : 0,
-      image1: l.image1 || '',
-      image2: l.image2 || '',
-      metalWt: l.metalWt || 0,
-      itemSize: (l.itemSize || '').trim(),
-    }));
+  const currentGoldLine = (): Line | null => {
+    const itemName = search.trim();
+    if (!itemName) return null;
+    const unitPrice = parseWt(price);
+    const metalWt = parseWt(draftMetalWt);
+    const itemSize = draftSize.trim();
+    const purity = parseWt(draftPurity);
+    if (pending && matchesPending(itemName, pending)) {
+      return { ...buildLine(pending, 1, unitPrice, '', 1), image1: draftImage1, image2: draftImage2, metalWt, itemSize, purity };
+    }
+    return {
+      key: 1,
+      productId: 0,
+      code: '',
+      name: itemName,
+      qty: 1,
+      displayQty: 1,
+      displayUnit: '',
+      price: unitPrice,
+      discType: 1,
+      discInput: 0,
+      discount: 0,
+      commissionPer: 0,
+      commission: 0,
+      total: unitPrice,
+      batchId: 0,
+      image1: draftImage1,
+      image2: draftImage2,
+      metalWt,
+      itemSize,
+      purity,
+    };
+  };
+
+  const collectProducts = () => {
+    const line = currentGoldLine();
+    if (!line) return [];
+    return [{
+      id: line.productId,
+      name: line.name,
+      qty: line.qty || 1,
+      price: line.price,
+      discount: line.discount,
+      total: isCommission ? line.total : line.qty * line.price - line.discount,
+      batchId: line.batchId,
+      commission: isCommission ? line.commissionPer : 0,
+      image1: line.image1 || '',
+      image2: line.image2 || '',
+      metalWt: line.metalWt || 0,
+      itemSize: (line.itemSize || '').trim(),
+      purity: line.purity || 0,
+    }];
+  };
 
   const payloadBase = () => ({
     customerName: customerName || '-',
@@ -859,13 +953,17 @@ const BillingPage: React.FC = () => {
     clearCustSuggest();
     setExchangePoint(0);
     setExchangeUsed(0);
+    setCustomerAdvance(0);
+    setAdvanceUsed(0);
+    savedBillExtraRef.current = 0;
+    loadedCustomerIdRef.current = 0;
     setBypassCap(false);
     setIsTaxBill(false);
     setIsCommission(false);
     setExtraDisc('0');
     setMode('1');
     setPayType('1');
-    setCashPaid('0');
+    setCashPaid('');
     setBankPaid('0');
     setBalance('0');
   };
@@ -874,31 +972,19 @@ const BillingPage: React.FC = () => {
   const showSavedBill = !!savedNo && savedStamp === billStamp && !editBillId;
 
   const openSave = () => {
-    if (lines.length === 0 && !savedNo) {
-      toast.error('Empty bill. Add products first.');
-      return;
-    }
-    if (!editBillId && activeHoldId() === 0 && quotationId <= 0 && saleTouchGenRef.current !== cartGenRef.current) {
-      autoPay.current = true;
-      applySaleDefaults();
-      if ((parseFloat(cashPaid) || 0) < 0.001 && payable > 0.001) {
-        setCashPaid(money(payable));
-      }
-      setBankPaid('0');
-      setBalance('0');
-    }
-    setSaveOpen(true);
+    void saveBill();
   };
 
   const saveBill = async () => {
     if (showSavedBill) return;
-    if (lines.length === 0) {
-      toast.error('Empty bill. Add products first.');
+    if (!currentGoldLine()) {
+      toast.error('Enter item name.');
+      searchRef.current?.focus();
       return;
     }
     const cash = parseFloat(cashPaid) || 0;
     const bank = 0;
-    const paid = cash;
+    const paid = cash + usedAdvance;
     const due = Math.max(0, payable - paid);
     if (cash < 0) {
       toast.error('Collected wt cannot be negative.');
@@ -919,6 +1005,7 @@ const BillingPage: React.FC = () => {
         ...payloadBase(),
         cashPaid: cash,
         bankPaid: bank,
+        advanceUsed: usedAdvance,
         mode: 1,
         type: 1,
         balance: due,
@@ -1118,6 +1205,7 @@ const BillingPage: React.FC = () => {
       image2: item.image2 || '',
       metalWt: Number(item.metalWt) || 0,
       itemSize: item.itemSize || '',
+      purity: Number(item.purity) || 0,
     }));
     setLines((prev) => (holdStillCurrent() ? mapped : prev));
     if (!holdStillCurrent()) return;
@@ -1211,6 +1299,7 @@ const BillingPage: React.FC = () => {
           image2: '',
           metalWt: Number(item.metalWt) || 0,
           itemSize: item.itemSize || '',
+          purity: Number(item.purity) || 0,
         });
       }
       setLines(next);
@@ -1288,6 +1377,8 @@ const BillingPage: React.FC = () => {
     setDraftImage1('');
     setDraftImage2('');
     setDraftMetalWt('');
+    setDraftSize('');
+    setDraftPurity('');
     setUploadingSlot(null);
     setSaving(false);
     setHolding(false);
@@ -1316,7 +1407,7 @@ const BillingPage: React.FC = () => {
     if (searchParams.get('edit')) {
       navigate(routerPathNames.billing, { replace: true });
     }
-    window.setTimeout(() => searchRef.current?.focus(), 0);
+    window.setTimeout(() => custNameRef.current?.focus(), 0);
   };
 
   const newBill = () => {
@@ -1352,7 +1443,7 @@ const BillingPage: React.FC = () => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        openSave();
+        void saveBill();
         return;
       }
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
@@ -1364,9 +1455,9 @@ const BillingPage: React.FC = () => {
         : e.code === 'KeyC' ? 'c'
         : e.key.toLowerCase();
       if (k === 'r') { e.preventDefault(); newBill(); }
-      else if (k === 's') { e.preventDefault(); openSave(); }
-      else if (k === 'b') { e.preventDefault(); saveBill(); }
-      else if (k === 'c') { e.preventDefault(); closeSave(); }
+      else if (k === 's') { e.preventDefault(); void saveBill(); }
+      else if (k === 'b') { e.preventDefault(); void saveBill(); }
+      else if (k === 'c') { e.preventDefault(); if (savedNo) newBill(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -1505,6 +1596,57 @@ const BillingPage: React.FC = () => {
       ) : (
         <>
           <div className="pos-top gold-form">
+            <div className="gold-form-row gold-form-customer">
+              <div className="pos-fg gold-cust-name">
+                <span className={`pos-lbl ${missingName ? 'pos-lbl-warn' : ''}`}>Customer *</span>
+                <input
+                  ref={custNameRef}
+                  className={`pos-inp ${missingName ? 'pos-inp-warn' : ''}`}
+                  value={customerName}
+                  autoComplete="off"
+                  placeholder="Name"
+                  autoFocus
+                  role="combobox"
+                  aria-expanded={custField === 'name' && customerHits.length > 0}
+                  aria-autocomplete="list"
+                  onChange={(e) => {
+                    markSaleDraft();
+                    setCustomerName(e.target.value);
+                    setCustomerId(0);
+                    setCustomerAdvance(0);
+                    setAdvanceUsed(0);
+                    searchCustomers(e.target.value, undefined, 'name');
+                  }}
+                  onKeyDown={onCustomerKey('name')}
+                />
+                {customerSuggest('name')}
+              </div>
+              <div className="pos-fg gold-cust-phone">
+                <span className={`pos-lbl ${missingPhone ? 'pos-lbl-warn' : ''}`}>Phone *</span>
+                <input
+                  ref={custPhoneRef}
+                  className={`pos-inp ${missingPhone ? 'pos-inp-warn' : ''}`}
+                  value={customerPhone}
+                  autoComplete="off"
+                  placeholder="Phone"
+                  inputMode="tel"
+                  role="combobox"
+                  aria-expanded={custField === 'phone' && customerHits.length > 0}
+                  aria-autocomplete="list"
+                  onChange={(e) => {
+                    markSaleDraft();
+                    setCustomerPhone(e.target.value);
+                    setCustomerId(0);
+                    setCustomerAdvance(0);
+                    setAdvanceUsed(0);
+                    searchCustomers(undefined, e.target.value, 'phone');
+                  }}
+                  onKeyDown={onCustomerKey('phone')}
+                />
+                {customerSuggest('phone')}
+              </div>
+            </div>
+
             <div className="gold-form-row gold-form-item">
               <div className="pos-fg gold-item-name">
                 <span className="pos-lbl">Item name</span>
@@ -1513,7 +1655,6 @@ const BillingPage: React.FC = () => {
                   className="pos-inp pos-inp-lg"
                   value={search}
                   placeholder="Type item name"
-                  autoFocus
                   onChange={(e) => onSearchChange(e.target.value)}
                   onKeyDown={onSearchKey}
                 />
@@ -1565,21 +1706,31 @@ const BillingPage: React.FC = () => {
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter' && e.key !== 'Tab') return;
                     e.preventDefault();
-                    metalWtRef.current?.focus();
-                    metalWtRef.current?.select();
+                    purityRef.current?.focus();
+                    purityRef.current?.select();
                   }}
+                />
+              </div>
+              <div className="pos-fg gold-item-purity">
+                <span className="pos-lbl">Purity</span>
+                <input
+                  ref={purityRef}
+                  className="pos-inp"
+                  value={draftPurity}
+                  placeholder="92"
+                  inputMode="decimal"
+                  onChange={(e) => setDraftPurity(e.target.value)}
                 />
               </div>
               <div className="pos-fg gold-item-wt">
                 <span className="pos-lbl">Wastage wt</span>
                 <input
                   ref={metalWtRef}
-                  className="pos-inp"
+                  className="pos-inp pos-inp-muted"
                   value={draftMetalWt}
-                  placeholder="0.000"
-                  inputMode="decimal"
-                  onChange={(e) => setDraftMetalWt(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addProduct()}
+                  placeholder="0.00"
+                  readOnly
+                  tabIndex={-1}
                 />
               </div>
               <div className="pos-fg gold-item-imgs">
@@ -1599,144 +1750,77 @@ const BillingPage: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="gold-item-acts">
-                <button className="pos-btn gold-add-btn" type="button" onClick={addProduct}>ADD</button>
-              </div>
             </div>
-          </div>
 
-          <div className="pos-table-wrap gold-line-table">
-            <table className="pos-table pos-table-lines pos-table-gold">
-              <thead>
-                <tr>
-                  <th>#</th><th>Item Name</th><th>Size</th><th>Finishing wt</th><th>Wastage wt</th><th>Photos</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {lines.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="gold-empty">Add item name. Size, finishing wt, wastage wt and photos can be added later.</td>
-                  </tr>
-                )}
-                {lines.map((line, idx) => (
-                  <tr key={line.key} className={missingLineWt(line) ? 'gold-line-missing-wt' : ''}>
-                    <td>{idx + 1}</td>
-                    <td>{line.name}</td>
-                    <td>
-                      <input
-                        className="pos-inp"
-                        value={line.itemSize || ''}
-                        placeholder="—"
-                        onChange={(e) => updateLineSize(line.key, e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="pos-inp"
-                        value={line.price || ''}
-                        inputMode="decimal"
-                        placeholder="0.000"
-                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseWt(e.target.value))}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        className="pos-inp"
-                        value={line.metalWt || ''}
-                        inputMode="decimal"
-                        placeholder="0.000"
-                        onChange={(e) => updateLineMetalWt(line.key, e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <div className="pos-img-slots">
-                        <ImageSlot
-                          fileName={line.image1}
-                          busy={uploadingSlot === `line-${line.key}-1`}
-                          onPick={(file) => void uploadItemImage(file, `line-${line.key}-1`)}
-                          onClear={() => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, image1: '' } : l)))}
-                        />
-                        <ImageSlot
-                          fileName={line.image2}
-                          busy={uploadingSlot === `line-${line.key}-2`}
-                          onPick={(file) => void uploadItemImage(file, `line-${line.key}-2`)}
-                          onClear={() => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, image2: '' } : l)))}
-                        />
-                      </div>
-                    </td>
-                    <td>
-                      <button className="pos-btn pos-btn-outline" type="button" onClick={() => removeLine(line.key)}>Delete</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="gold-line-cards">
-            {lines.length === 0 && (
-              <div className="gold-empty-card">Add item name. Size, finishing wt, wastage wt and photos can be added later.</div>
-            )}
-            {lines.map((line, idx) => (
-              <div key={line.key} className={`gold-line-card${missingLineWt(line) ? ' gold-line-missing-wt' : ''}`}>
-                <div className="gold-line-card-top">
-                  <strong>{idx + 1}. {line.name}{line.itemSize ? ` · ${line.itemSize}` : ''}</strong>
-                  <button className="pos-btn pos-btn-outline gold-card-del" type="button" onClick={() => removeLine(line.key)}>Delete</button>
-                </div>
-                <div className="gold-line-card-body">
-                  <div className="pos-img-slots">
-                    <ImageSlot
-                      fileName={line.image1}
-                      busy={uploadingSlot === `line-${line.key}-1`}
-                      onPick={(file) => void uploadItemImage(file, `line-${line.key}-1`)}
-                      onClear={() => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, image1: '' } : l)))}
-                    />
-                    <ImageSlot
-                      fileName={line.image2}
-                      busy={uploadingSlot === `line-${line.key}-2`}
-                      onPick={(file) => void uploadItemImage(file, `line-${line.key}-2`)}
-                      onClear={() => setLines((prev) => prev.map((l) => (l.key === line.key ? { ...l, image2: '' } : l)))}
-                    />
-                  </div>
-                  <div className="gold-card-fields">
-                    <div className="pos-fg gold-card-amt">
-                      <span className="pos-lbl">Finishing wt</span>
-                      <input
-                        className="pos-inp"
-                        value={line.price || ''}
-                        inputMode="decimal"
-                        placeholder="0.000"
-                        onChange={(e) => updateLineQtyPrice(line.key, 1, parseWt(e.target.value))}
-                      />
-                    </div>
-                    <div className="pos-fg gold-card-wt">
-                      <span className="pos-lbl">Wastage wt</span>
-                      <input
-                        className="pos-inp"
-                        value={line.metalWt || ''}
-                        inputMode="decimal"
-                        placeholder="0.000"
-                        onChange={(e) => updateLineMetalWt(line.key, e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
+            <div className="gold-form-row gold-form-pay">
+              <div className="pos-fg gold-collect">
+                <span className="pos-lbl pos-lbl-em">Collected wt</span>
+                <input
+                  className="pos-inp pos-inp-pay"
+                  value={cashPaid}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
+                />
               </div>
-            ))}
+              <div className={`pos-save-due-chip gold-due-chip ${dueAmt > 0.001 ? 'has-due' : extraAmt > 0.001 ? (weightsPending ? 'advance' : 'over-paid') : 'settled'}`}>
+                <span>{dueAmt > 0.001 ? 'Due' : extraAmt > 0.001 ? (weightsPending ? 'Advance' : 'Extra') : 'Due'}</span>
+                <strong>{money(dueAmt > 0.001 ? dueAmt : extraAmt)}</strong>
+              </div>
+              {usableAdvance > 0.001 && (
+                <div className="pos-save-advance gold-advance">
+                  <span>Advance {money(usableAdvance)}</span>
+                  <button
+                    className="pos-btn pos-btn-outline"
+                    type="button"
+                    disabled={payable < 0.001}
+                    onClick={() => {
+                      const uncovered = Math.max(0, payable - cashAmt);
+                      if (uncovered < 0.001) {
+                        const use = Math.min(usableAdvance, payable);
+                        setAdvanceUsed(use);
+                        setCashPaid(money(Math.max(0, payable - use)));
+                      } else {
+                        setAdvanceUsed(Math.min(usableAdvance, uncovered));
+                      }
+                    }}
+                  >
+                    Use advance
+                  </button>
+                  {usedAdvance > 0.001 && (
+                    <button className="pos-btn pos-btn-outline" type="button" onClick={() => setAdvanceUsed(0)}>
+                      Clear {money(usedAdvance)}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="pos-bottom gold-bottom">
             <div className="pos-footer">
               <div className="pos-total-box">
-                <span>Finishing {money(totals.finishingTotal)} + Wastage {money(totals.wastageTotal)}</span>
+                <span>Finishing {money(totals.finishingTotal)} + Wastage {wastage(totals.wastageTotal)}</span>
                 <strong>{money(payable)}</strong>
               </div>
               <div className="pos-acts gold-acts">
                 <button className="pos-btn pos-btn-outline gold-desk-only" type="button" onClick={openDupe}>Last Bills</button>
                 <button className="pos-btn gold-list-btn" type="button" onClick={() => navigate(routerPathNames.billingList)}>LIST</button>
                 <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
-                <button className={`pos-btn gold-save-btn ${showSavedBill ? 'pos-btn-saved' : 'pos-btn-navy'}`} type="button" title="Alt+S" onClick={openSave}>
-                  {showSavedBill ? 'BILL SAVED' : editBillId ? 'UPDATE' : 'SAVE'}
+                {editBillId > 0 && (
+                  <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
+                    Cancel
+                  </button>
+                )}
+                <button
+                  className={`pos-btn gold-save-btn ${showSavedBill ? 'pos-btn-saved' : 'pos-btn-navy'}`}
+                  type="button"
+                  title="Alt+S"
+                  disabled={saving || showSavedBill || !!uploadingSlot}
+                  onClick={() => void saveBill()}
+                >
+                  {showSavedBill ? 'BILL SAVED' : saving ? (editBillId ? 'Updating…' : 'Saving…') : (editBillId ? 'UPDATE' : 'SAVE')}
                 </button>
                 {(showSavedBill || editBillNo) && <div className="pos-billno">Bill No - {showSavedBill ? savedNo : editBillNo}</div>}
                 {showHoldBadge && <div className="pos-billno">Hold - {holdNo}</div>}
@@ -1755,142 +1839,13 @@ const BillingPage: React.FC = () => {
             </div>
             <table className="pos-table pos-table-fit">
               <tbody>
-                <tr><td>Hold bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">O</kbd></td></tr>
                 <tr><td>Refresh / new bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">R</kbd></td></tr>
-                <tr><td>Open save modal</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">S</kbd></td></tr>
-                <tr><td>Save bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">B</kbd></td></tr>
+                <tr><td>Save bill</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">S</kbd></td></tr>
                 <tr><td>Print</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">P</kbd></td></tr>
-                <tr><td>Close save modal</td><td><kbd className="pos-kbd">Alt</kbd> + <kbd className="pos-kbd">C</kbd></td></tr>
               </tbody>
             </table>
             <div style={{ marginTop: 10, fontSize: 12, color: 'var(--color-text-muted)' }}>
               After a bill is saved, Close / Alt+C refreshes the page for the next bill.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {saveOpen && (
-        <div className="pos-modal-back" onClick={closeSave}>
-          <div className="pos-modal pos-save-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="pos-save-head">
-              <h4>{editBillId ? `Update Bill #${editBillNo}` : 'Save Bill'}</h4>
-              <div className="pos-save-head-amt" title="Finishing wt + wastage wt">
-                <span>Total wt</span>
-                <strong>{money(payable)}</strong>
-              </div>
-            </div>
-
-            <div className="pos-save-body">
-              <p className="pos-save-section-label">Customer</p>
-              <div className="pos-save-row pos-save-customer-row">
-                <div className="pos-fg pos-save-customer-name">
-                  <span className={`pos-lbl ${missingName ? 'pos-lbl-warn' : ''}`}>
-                    Customer *
-                  </span>
-                  <input
-                    className={`pos-inp ${missingName ? 'pos-inp-warn' : ''}`}
-                    value={customerName}
-                    autoComplete="off"
-                    placeholder="Name"
-                    role="combobox"
-                    aria-expanded={custField === 'name' && customerHits.length > 0}
-                    aria-autocomplete="list"
-                    onChange={(e) => {
-                      markSaleDraft();
-                      setCustomerName(e.target.value);
-                      setCustomerId(0);
-                      searchCustomers(e.target.value, undefined, 'name');
-                    }}
-                    onKeyDown={onCustomerKey('name')}
-                  />
-                  {customerSuggest('name')}
-                </div>
-                <div className="pos-fg">
-                  <span className={`pos-lbl ${missingPhone ? 'pos-lbl-warn' : ''}`}>
-                    Phone *
-                  </span>
-                  <input
-                    className={`pos-inp ${missingPhone ? 'pos-inp-warn' : ''}`}
-                    value={customerPhone}
-                    autoComplete="off"
-                    placeholder="Phone"
-                    inputMode="tel"
-                    role="combobox"
-                    aria-expanded={custField === 'phone' && customerHits.length > 0}
-                    aria-autocomplete="list"
-                    onChange={(e) => {
-                      markSaleDraft();
-                      setCustomerPhone(e.target.value);
-                      setCustomerId(0);
-                      searchCustomers(undefined, e.target.value, 'phone');
-                    }}
-                    onKeyDown={onCustomerKey('phone')}
-                  />
-                  {customerSuggest('phone')}
-                </div>
-              </div>
-
-              <p className="pos-save-section-label">Payment</p>
-              <div className="pos-save-row pos-save-pay-row pos-save-pay-wt">
-                <div className="pos-fg">
-                  <span className="pos-lbl">Finishing wt</span>
-                  <input className="pos-inp pos-inp-muted" value={money(totals.finishingTotal)} readOnly />
-                </div>
-                <div className="pos-fg">
-                  <span className="pos-lbl">Wastage wt</span>
-                  <input className="pos-inp pos-inp-muted" value={money(totals.wastageTotal)} readOnly />
-                </div>
-                <div className="pos-fg">
-                  <span className="pos-lbl pos-lbl-em">Collected wt</span>
-                  <input
-                    className="pos-inp pos-inp-pay"
-                    value={cashPaid}
-                    inputMode="decimal"
-                    onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
-                  />
-                </div>
-                <div className={`pos-save-due-chip ${dueAmt > 0.001 ? 'has-due' : extraAmt > 0.001 ? (weightsPending ? 'advance' : 'over-paid') : 'settled'}`}>
-                  <span>{dueAmt > 0.001 ? 'Due' : extraAmt > 0.001 ? (weightsPending ? 'Advance' : 'Extra') : 'Due'}</span>
-                  <strong>{money(dueAmt > 0.001 ? dueAmt : extraAmt)}</strong>
-                </div>
-              </div>
-
-              {weightsPending && paidAmt > 0.001 && (
-                <p className="pos-save-inline">Collected now. Due will adjust when finishing and wastage are added.</p>
-              )}
-              {extraAmt > 0.001 && !weightsPending && (
-                <p className="pos-save-inline pos-save-inline-warn">Extra {money(extraAmt)} after finishing + wastage. Adjust or return this wt.</p>
-              )}
-              {needsCustomer && (
-                <p className="pos-save-inline pos-save-inline-warn">Enter customer name and phone.</p>
-              )}
-              {dueAmt > 0.001 && !needsCustomer && (
-                <p className="pos-save-inline pos-save-inline-warn">Due {money(dueAmt)} → {customerName.trim() || 'customer'}.</p>
-              )}
-            </div>
-
-            <div className="pos-save-footer">
-              <div className="pos-save-meta">
-                {showSavedBill && <span className="pos-billno">Bill No — {savedNo}</span>}
-                {showHoldBadge && <span className="pos-billno">Hold — {holdNo}</span>}
-              </div>
-              <div className="pos-acts pos-acts-end">
-                {editBillId > 0 && (
-                  <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
-                    Cancel bill
-                  </button>
-                )}
-                <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
-                <button
-                  className={`pos-btn pos-save-primary ${showSavedBill ? 'pos-btn-saved' : ''}`}
-                  disabled={saving || needsCustomer || showSavedBill}
-                  title="Alt+B"
-                  onClick={saveBill}
-                >
-                  {showSavedBill ? 'Bill saved' : saving ? (editBillId ? 'Updating…' : 'Saving…') : (editBillId ? 'Update bill' : 'Save bill')}
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -2042,6 +1997,16 @@ const BillingPage: React.FC = () => {
             </table>
           </div>
         </div>
+      )}
+
+      {uploadingSlot && createPortal(
+        <div className="app-loading-overlay" role="status" aria-live="polite" aria-label="Uploading photo">
+          <div className="app-loading-box">
+            <span className="app-loading-gif" aria-hidden="true" />
+            <span>Uploading photo…</span>
+          </div>
+        </div>,
+        document.body
       )}
 
       {a4Bill && createPortal(

@@ -42,7 +42,8 @@ public class BillingWriteService {
         String billNo = nextBillNumber(isTaxBill);
         double cashPaid = nz(request.getCashPaid());
         double bankPaid = nz(request.getBankPaid());
-        double totalPaid = cashPaid + bankPaid;
+        double advanceUsed = nz(request.getAdvanceUsed());
+        double totalPaid = cashPaid + bankPaid + advanceUsed;
         double payableAmt = nz(request.getPayableAmount());
         double balance = dueAmount(totalPaid, payableAmt, customerId);
         int mode = request.getMode() == null ? 1 : request.getMode();
@@ -107,9 +108,7 @@ public class BillingWriteService {
                 null, mode, nz(request.getPayableAmount()), cashPaid, bankPaid, type, uid
         );
 
-        if (balance > 0 && customerId != null && customerId > 0) {
-            addDueToCustomerAccount(customerId, balance);
-        }
+        applyCustomerAccount(customerId, totalPaid, payableAmt, advanceUsed);
 
         boolean canBillWithoutStock = Boolean.TRUE.equals(readService.options(uid).getCanBillWithoutStock());
         for (BillLineRequest line : request.getProducts()) {
@@ -239,21 +238,21 @@ public class BillingWriteService {
         int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
         double cost = productCost(line.getId(), line.getBatchId());
         jdbcTemplate.update(
-                "INSERT INTO prod_bill_details (bill_id, prod_id, qty, price, disc, total, gst, cost, commission, image1, image2, metal_wt, item_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO prod_bill_details (bill_id, prod_id, qty, price, disc, total, gst, cost, commission, image1, image2, metal_wt, item_size, purity) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 billId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()),
                 nz(line.getTotal()), gst, cost, nz(line.getCommission()),
                 blankToNull(line.getImage1()), blankToNull(line.getImage2()), nz(line.getMetalWt()),
-                blankToNull(line.getItemSize())
+                blankToNull(line.getItemSize()), nz(line.getPurity())
         );
     }
 
     private void insertHoldDetail(long quotId, BillLineRequest line, int isTaxBill) {
         int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
         jdbcTemplate.update(
-                "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled, image1, image2, metal_wt, item_size) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
+                "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled, image1, image2, metal_wt, item_size, purity) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)",
                 quotId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()), nz(line.getTotal()), gst,
                 blankToNull(line.getImage1()), blankToNull(line.getImage2()), nz(line.getMetalWt()),
-                blankToNull(line.getItemSize())
+                blankToNull(line.getItemSize()), nz(line.getPurity())
         );
     }
 
@@ -474,6 +473,7 @@ public class BillingWriteService {
         double oldBank = oldPayRows.isEmpty() ? 0 : toDouble(oldPayRows.get(0).get("bank"));
 
         reverseCustomerDue(oldCustomerId, oldDue);
+        reverseCustomerAdvance(oldCustomerId, extraAmount(toDouble(old.get("paid")), toDouble(old.get("payable"))));
         restoreBillStock(billId, uid);
 
         Long customerId = resolveCustomer(request);
@@ -481,7 +481,8 @@ public class BillingWriteService {
         int isTaxBill = request.getIsTaxBill() == null ? 1 : request.getIsTaxBill();
         double cashPaid = nz(request.getCashPaid());
         double bankPaid = nz(request.getBankPaid());
-        double totalPaid = cashPaid + bankPaid;
+        double advanceUsed = nz(request.getAdvanceUsed());
+        double totalPaid = cashPaid + bankPaid + advanceUsed;
         double payableAmt = nz(request.getPayableAmount());
         double balance = dueAmount(totalPaid, payableAmt, customerId);
         int mode = request.getMode() == null ? 1 : request.getMode();
@@ -546,9 +547,7 @@ public class BillingWriteService {
             );
         }
 
-        if (balance > 0 && customerId != null && customerId > 0) {
-            addDueToCustomerAccount(customerId, balance);
-        }
+        applyCustomerAccount(customerId, totalPaid, payableAmt, advanceUsed);
 
         boolean canBillWithoutStock = Boolean.TRUE.equals(readService.options(uid).getCanBillWithoutStock());
         for (BillLineRequest line : request.getProducts()) {
@@ -721,6 +720,72 @@ public class BillingWriteService {
             return new BigDecimal(value.toString());
         } catch (NumberFormatException e) {
             return BigDecimal.ZERO;
+        }
+    }
+
+    private double extraAmount(double paid, double payableAmt) {
+        return Math.max(0, paid - payableAmt);
+    }
+
+    private void applyCustomerAccount(Long customerId, double totalPaid, double payableAmt, double advanceUsed) {
+        if (advanceUsed > 0.001) {
+            if (customerId == null || customerId <= 0) {
+                throw new RuntimeException("Select customer to use advance.");
+            }
+            double available = customerAdvance(customerId);
+            if (advanceUsed > available + 0.001) {
+                throw new RuntimeException("Advance is less than used wt.");
+            }
+            reverseCustomerAdvance(customerId, advanceUsed);
+        }
+        double extra = extraAmount(totalPaid, payableAmt);
+        if (extra > 0.001 && customerId != null && customerId > 0) {
+            addAdvanceToCustomerAccount(customerId, extra);
+        }
+        double due = Math.max(0, payableAmt - totalPaid);
+        if (due > 0.001 && customerId != null && customerId > 0) {
+            addDueToCustomerAccount(customerId, due);
+        }
+    }
+
+    private double customerAdvance(long customerId) {
+        Double value = jdbcTemplate.query(
+                "SELECT advance FROM customer_account WHERE customer_id = ?",
+                rs -> rs.next() ? rs.getDouble(1) : 0d,
+                customerId
+        );
+        return value == null ? 0d : value;
+    }
+
+    private void addAdvanceToCustomerAccount(Long customerId, double amount) {
+        if (customerId == null || customerId <= 0 || amount <= 0.001) {
+            return;
+        }
+        int rows = jdbcTemplate.update(
+                "UPDATE customer_account SET advance = advance + ? WHERE customer_id = ?",
+                amount, customerId
+        );
+        if (rows == 0) {
+            jdbcTemplate.update(
+                    "INSERT INTO customer_account (customer_id, advance, balance) VALUES (?, ?, 0.00)",
+                    customerId, amount
+            );
+        }
+    }
+
+    private void reverseCustomerAdvance(long customerId, double amount) {
+        if (customerId <= 0 || amount <= 0.001) {
+            return;
+        }
+        int rows = jdbcTemplate.update(
+                "UPDATE customer_account SET advance = GREATEST(0, advance - ?) WHERE customer_id = ?",
+                amount, customerId
+        );
+        if (rows == 0) {
+            jdbcTemplate.update(
+                    "INSERT INTO customer_account (customer_id, advance, balance) VALUES (?, 0.00, 0.00)",
+                    customerId
+            );
         }
     }
 

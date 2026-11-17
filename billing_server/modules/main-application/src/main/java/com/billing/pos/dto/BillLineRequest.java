@@ -16,4 +16,5 @@ public class BillLineRequest {
     private String image2;
     private Double metalWt;
     private String itemSize;
+    private Double purity;
 }

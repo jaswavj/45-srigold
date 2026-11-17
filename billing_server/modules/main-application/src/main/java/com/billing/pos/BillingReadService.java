@@ -47,10 +47,12 @@ public class BillingReadService {
         addTableColumn("prod_bill_details", "image2", "VARCHAR(255) NULL");
         addTableColumn("prod_bill_details", "metal_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         addTableColumn("prod_bill_details", "item_size", "VARCHAR(50) NULL");
+        addTableColumn("prod_bill_details", "purity", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         addTableColumn("prod_quotation_details", "image1", "VARCHAR(255) NULL");
         addTableColumn("prod_quotation_details", "image2", "VARCHAR(255) NULL");
         addTableColumn("prod_quotation_details", "metal_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         addTableColumn("prod_quotation_details", "item_size", "VARCHAR(50) NULL");
+        addTableColumn("prod_quotation_details", "purity", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         quotationFlagsReady = true;
     }
 
@@ -270,7 +272,7 @@ public class BillingReadService {
         return jdbcTemplate.query(
                 "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(b.id, 0) AS batch_id, IFNULL(b.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
-                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size " +
+                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity " +
                         "FROM prod_quotation_details d " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
                         "LEFT JOIN prod_batch b ON b.product_id = p.id " +
@@ -293,6 +295,7 @@ public class BillingReadService {
                     row.setImage2(nz(rs.getString("image2")));
                     row.setMetalWt(rs.getDouble("metal_wt"));
                     row.setItemSize(nz(rs.getString("item_size")));
+                    row.setPurity(rs.getDouble("purity"));
                     return row;
                 },
                 quotId
@@ -366,14 +369,16 @@ public class BillingReadService {
         }
         List<EditBillLoadData> headers = jdbcTemplate.query(
                 "SELECT b.id, b.bill_display, b.cusName, b.cusPhn, b.customerId, b.is_tax_bill, b.extraDisc, " +
-                        "b.paymentMode, b.paymentType, b.balance, b.payable, " +
+                        "b.paymentMode, b.paymentType, b.balance, b.payable, IFNULL(b.paid, 0) AS paid_total, " +
                         "IFNULL(pay.cash, 0) AS cash, IFNULL(pay.bank, 0) AS bank, " +
                         "IFNULL(c.name, '') AS cust_name, IFNULL(c.phone_number, '') AS phone, " +
                         "IFNULL(c.exchange_point, 0) AS exchange_point, " +
-                        "COALESCE(c.is_eligible_for_commission, 0) AS is_eligible " +
+                        "COALESCE(c.is_eligible_for_commission, 0) AS is_eligible, " +
+                        "IFNULL(ca.advance, 0) AS advance " +
                         "FROM prod_bill b " +
                         "LEFT JOIN prod_bill_payment pay ON pay.bill_id = b.id " +
                         "LEFT JOIN customers c ON c.id = b.customerId " +
+                        "LEFT JOIN customer_account ca ON ca.customer_id = b.customerId " +
                         "WHERE b.bill_display = ? AND IFNULL(b.is_cancelled, 0) = 0 LIMIT 1",
                 (rs, i) -> {
                     EditBillLoadData data = new EditBillLoadData();
@@ -390,11 +395,12 @@ public class BillingReadService {
                     data.setPaymentMode(rs.getInt("paymentMode"));
                     int payType = rs.getInt("paymentType");
                     data.setPaymentType(payType <= 0 ? 1 : payType);
-                    data.setCashPaid(rs.getDouble("cash"));
-                    data.setBankPaid(rs.getDouble("bank"));
+                    data.setCashPaid(rs.getDouble("paid_total"));
+                    data.setBankPaid(0d);
                     data.setBalance(rs.getDouble("balance"));
                     data.setPayable(rs.getDouble("payable"));
                     data.setExchangePoint(rs.getDouble("exchange_point"));
+                    data.setAdvance(rs.getDouble("advance"));
                     data.setIsEligibleForCommission(rs.getInt("is_eligible"));
                     return data;
                 },
@@ -413,7 +419,7 @@ public class BillingReadService {
         bill.setProducts(jdbcTemplate.query(
                 "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(d.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
-                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, " +
+                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, " +
                         "IFNULL((SELECT id FROM prod_batch WHERE product_id = d.prod_id ORDER BY id DESC LIMIT 1), 0) AS batch_id " +
                         "FROM prod_bill_details d " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
@@ -436,6 +442,7 @@ public class BillingReadService {
                     row.setImage2(nz(rs.getString("image2")));
                     row.setMetalWt(rs.getDouble("metal_wt"));
                     row.setItemSize(nz(rs.getString("item_size")));
+                    row.setPurity(rs.getDouble("purity"));
                     return row;
                 },
                 bill.getBillId()
@@ -443,13 +450,14 @@ public class BillingReadService {
         return bill;
     }
 
-    public List<BillingListItemData> itemList(String from, String to, boolean unfinished) {
+    public List<BillingListItemData> itemList(String from, String to, boolean unfinished, boolean finished) {
         ensureQuotationFlags();
         String sql =
                 "SELECT b.id AS bill_id, b.bill_display, b.date, b.time, " +
                         "IFNULL(NULLIF(TRIM(c.name), ''), IFNULL(b.cusName, '')) AS customer_name, " +
                         "IFNULL(NULLIF(TRIM(c.phone_number), ''), IFNULL(b.cusPhn, '')) AS phone, " +
-                        "p.name AS item_name, IFNULL(d.item_size, '') AS item_size, IFNULL(d.metal_wt, 0) AS metal_wt, d.price AS cost, " +
+                        "p.name AS item_name, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, IFNULL(d.metal_wt, 0) AS metal_wt, d.price AS cost, " +
+                        "IFNULL(b.paid, 0) AS paid, IFNULL(b.payable, 0) AS payable, " +
                         "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2 " +
                         "FROM prod_bill b " +
                         "JOIN prod_bill_details d ON d.bill_id = b.id " +
@@ -458,14 +466,15 @@ public class BillingReadService {
                         "WHERE IFNULL(b.is_cancelled, 0) = 0 ";
         if (unfinished) {
             return jdbcTemplate.query(
-                    sql + "AND IFNULL(d.price, 0) <= 0 ORDER BY b.date DESC, b.time DESC, b.id DESC, d.id",
+                    sql + "AND IFNULL(d.price, 0) <= 0 ORDER BY b.date ASC, b.time ASC, b.id ASC, d.id ASC",
                     this::mapListItem
             );
         }
         String start = (from == null || from.isBlank()) ? java.time.LocalDate.now().toString() : from.trim();
         String end = (to == null || to.isBlank()) ? java.time.LocalDate.now().toString() : to.trim();
+        String wtFilter = finished ? "AND IFNULL(d.price, 0) > 0 " : "";
         return jdbcTemplate.query(
-                sql + "AND b.date BETWEEN ? AND ? ORDER BY b.date DESC, b.time DESC, b.id DESC, d.id",
+                sql + wtFilter + "AND b.date BETWEEN ? AND ? ORDER BY b.date DESC, b.time DESC, b.id DESC, d.id",
                 this::mapListItem,
                 start,
                 end
@@ -484,8 +493,11 @@ public class BillingReadService {
         row.setPhone("-".equals(phone) ? "" : phone);
         row.setItemName(nz(rs.getString("item_name")));
         row.setItemSize(nz(rs.getString("item_size")));
+        row.setPurity(rs.getDouble("purity"));
         row.setMetalWt(rs.getDouble("metal_wt"));
         row.setCost(rs.getDouble("cost"));
+        row.setPaid(rs.getDouble("paid"));
+        row.setPayable(rs.getDouble("payable"));
         String image1 = nz(rs.getString("image1"));
         String image2 = nz(rs.getString("image2"));
         row.setImage1(image1);
@@ -636,7 +648,7 @@ public class BillingReadService {
                 "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, IFNULL(d.is_exchanged,0) AS is_exchanged, " +
                         "IFNULL(cat.name,'') AS category_name, " +
                         "CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN '' ELSE CAST(p.hsn AS CHAR) END AS hsn, " +
-                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size,'') AS item_size " +
+                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size,'') AS item_size, IFNULL(d.purity, 0) AS purity " +
                         "FROM prod_bill_details d JOIN prod_product p ON p.id = d.prod_id " +
                         "JOIN prod_bill b ON b.id = d.bill_id " +
                         "LEFT JOIN prod_category cat ON cat.id = p.category_id " +
@@ -659,6 +671,7 @@ public class BillingReadService {
                     line.setImage2(nz(rs.getString("image2")));
                     line.setMetalWt(rs.getDouble("metal_wt"));
                     line.setItemSize(nz(rs.getString("item_size")));
+                    line.setPurity(rs.getDouble("purity"));
                     return line;
                 },
                 billNo
@@ -911,7 +924,8 @@ public class BillingReadService {
                 "CASE WHEN gstin = '' OR gstin IS NULL THEN '-' ELSE gstin END AS gstin, " +
                 "COALESCE(credit_limit, 0) AS credit_limit, COALESCE(is_gst, 0) AS is_gst, " +
                 "COALESCE(is_eligible_for_commission, 0) AS is_eligible_for_commission, " +
-                "COALESCE(exchange_point, 0) AS exchange_point " +
+                "COALESCE(exchange_point, 0) AS exchange_point, " +
+                "COALESCE((SELECT advance FROM customer_account WHERE customer_id = customers.id), 0) AS advance " +
                 "FROM customers WHERE is_active = 1 AND " + where + " ORDER BY name LIMIT 10";
     }
 
@@ -926,6 +940,7 @@ public class BillingReadService {
         data.setIsGst(rs.getInt("is_gst"));
         data.setIsEligibleForCommission(rs.getInt("is_eligible_for_commission"));
         data.setExchangePoint(rs.getDouble("exchange_point"));
+        data.setAdvance(rs.getDouble("advance"));
         return data;
     }
 }

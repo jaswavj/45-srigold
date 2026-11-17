@@ -16,10 +16,10 @@ type Photo = {
   fileName: string;
 };
 
-const wt = (n?: number | null) => {
+const wt = (n?: number | null, digits = 3) => {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return '';
-  return v.toFixed(3);
+  return v.toFixed(digits);
 };
 
 const api = new BillingApiService();
@@ -83,7 +83,7 @@ const GalleryPage: React.FC = () => {
   const viewPhoto = viewIndex == null ? null : visible[viewIndex];
   const wtText = (photo: Photo) => {
     const finishing = wt(photo.finishingWt);
-    const wastage = wt(photo.metalWt);
+    const wastage = wt(photo.metalWt, 2);
     return [finishing ? `Finishing wt: ${finishing}` : '', wastage ? `Wastage wt: ${wastage}` : '']
       .filter(Boolean)
       .join(' · ');

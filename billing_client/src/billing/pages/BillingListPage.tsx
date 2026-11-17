@@ -5,6 +5,7 @@ import { adminApi, adminError } from '../../api/admin/admin-api-service';
 import { BillingApiService } from '../../api/billing/billing-api-service';
 import { routerPathNames } from '../../routes/routerPathNames';
 import { sriImageUrl } from '../utils/sriImages';
+import FinishedShareCard from './FinishedShareCard';
 import './master/Master.css';
 import './BillingListPage.css';
 
@@ -17,19 +18,24 @@ type ListRow = {
   phone: string;
   itemName: string;
   itemSize: string;
+  purity: number;
   metalWt: number;
   cost: number;
+  paid: number;
+  payable: number;
   image1: string;
   image2: string;
   missingImage: boolean;
 };
 
+type ListFilter = 'all' | 'unfinished' | 'finished';
+
 const today = () => new Date().toISOString().slice(0, 10);
 const api = new BillingApiService();
-const wt = (n?: number | null) => {
+const wt = (n?: number | null, digits = 3) => {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return 'Not added';
-  return v.toFixed(3);
+  return v.toFixed(digits);
 };
 
 const bothPhotosMissing = (row: ListRow) => !(row.image1 || '').trim() && !(row.image2 || '').trim();
@@ -39,6 +45,19 @@ const listRowClass = (row: ListRow) => {
   if (missingWeights(row)) classes.push('gold-list-missing-wt');
   if (bothPhotosMissing(row)) classes.push('gold-list-missing');
   return classes.join(' ');
+};
+
+const PayBadges: React.FC<{ row: ListRow }> = ({ row }) => {
+  const paid = Number(row.paid) || 0;
+  const payable = Number(row.payable) || 0;
+  const advance = Math.max(0, paid - payable);
+  const due = Math.max(0, payable - paid);
+  return (
+    <div className="gold-list-pay">
+      <span className={`gold-list-badge adv${advance > 0.001 ? '' : ' off'}`}>Adv {advance.toFixed(3)}</span>
+      <span className={`gold-list-badge due${due > 0.001 ? '' : ' off'}`}>Due {due.toFixed(3)}</span>
+    </div>
+  );
 };
 
 const Photo: React.FC<{ fileName?: string; onOpen?: () => void }> = ({ fileName, onOpen }) => {
@@ -56,7 +75,7 @@ const BillingListPage: React.FC = () => {
   const navigate = useNavigate();
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
-  const [unfinished, setUnfinished] = useState(false);
+  const [filter, setFilter] = useState<ListFilter>('all');
   const [search, setSearch] = useState('');
   const [rows, setRows] = useState<ListRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,6 +83,7 @@ const BillingListPage: React.FC = () => {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
   const [view, setView] = useState<{ urls: string[]; index: number } | null>(null);
+  const [shareBillNo, setShareBillNo] = useState<string | null>(null);
 
   const openPhoto = (row: ListRow, which: 1 | 2) => {
     const files = [row.image1, row.image2].filter((name) => (name || '').trim());
@@ -84,10 +104,10 @@ const BillingListPage: React.FC = () => {
     });
   }, [rows, search]);
 
-  const load = useCallback(async (start = from, end = to, onlyUnfinished = unfinished) => {
+  const load = useCallback(async (start = from, end = to, mode: ListFilter = filter) => {
     setLoading(true);
     try {
-      const res: any = await api.itemList(start, end, onlyUnfinished);
+      const res: any = await api.itemList(start, end, mode === 'unfinished', mode === 'finished');
       setRows(Array.isArray(res?.data) ? res.data : []);
     } catch (err: any) {
       toast.error(err?.response?.data?.data?.error || err?.message || 'Could not load list');
@@ -95,7 +115,7 @@ const BillingListPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [from, to, unfinished]);
+  }, [from, to, filter]);
 
   useEffect(() => {
     void load(today(), today());
@@ -151,6 +171,23 @@ const BillingListPage: React.FC = () => {
 
   const RowActs: React.FC<{ row: ListRow }> = ({ row }) => (
     <div className="gold-list-acts">
+      {filter === 'finished' && (
+        <button
+          className="gold-list-icon gold-list-icon-wa"
+          type="button"
+          title="WhatsApp / JPEG"
+          aria-label="WhatsApp"
+          onClick={() => {
+            if (!row.billDisplay) {
+              toast.error('Bill number missing');
+              return;
+            }
+            setShareBillNo(row.billDisplay);
+          }}
+        >
+          <i className="fab fa-whatsapp" />
+        </button>
+      )}
       <button className="gold-list-icon gold-list-icon-edit" type="button" title="Edit" aria-label="Edit" onClick={() => editBill(row)}>
         <i className="fas fa-pen" />
       </button>
@@ -167,13 +204,13 @@ const BillingListPage: React.FC = () => {
       </h2>
       <div className="mst-card" style={{ marginBottom: 12 }}>
         <div className="mst-card-b gold-list-filters">
-          <div className={`mst-fg${unfinished ? ' gold-list-date-off' : ''}`}>
+          <div className={`mst-fg${filter === 'unfinished' ? ' gold-list-date-off' : ''}`}>
             <label>From date</label>
-            <input className="mst-inp" type="date" value={from} disabled={unfinished} onChange={(e) => setFrom(e.target.value)} />
+            <input className="mst-inp" type="date" value={from} disabled={filter === 'unfinished'} onChange={(e) => setFrom(e.target.value)} />
           </div>
-          <div className={`mst-fg${unfinished ? ' gold-list-date-off' : ''}`}>
+          <div className={`mst-fg${filter === 'unfinished' ? ' gold-list-date-off' : ''}`}>
             <label>To date</label>
-            <input className="mst-inp" type="date" value={to} disabled={unfinished} onChange={(e) => setTo(e.target.value)} />
+            <input className="mst-inp" type="date" value={to} disabled={filter === 'unfinished'} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div className="mst-fg gold-list-search">
             <label>Search</label>
@@ -190,22 +227,33 @@ const BillingListPage: React.FC = () => {
               type="button"
               disabled={loading}
               onClick={() => {
-                setUnfinished(false);
-                void load(from, to, false);
+                setFilter('all');
+                void load(from, to, 'all');
               }}
             >
-              {loading && !unfinished ? 'Loading…' : 'Show'}
+              {loading && filter === 'all' ? 'Loading…' : 'Show'}
             </button>
             <button
-              className={`mst-btn gold-list-unfinished${unfinished ? ' on' : ''}`}
+              className={`mst-btn gold-list-unfinished${filter === 'unfinished' ? ' on' : ''}`}
               type="button"
               disabled={loading}
               onClick={() => {
-                setUnfinished(true);
-                void load(from, to, true);
+                setFilter('unfinished');
+                void load(from, to, 'unfinished');
               }}
             >
-              {loading && unfinished ? 'Loading…' : 'Not finished'}
+              {loading && filter === 'unfinished' ? 'Loading…' : 'Not finished'}
+            </button>
+            <button
+              className={`mst-btn gold-list-finished${filter === 'finished' ? ' on' : ''}`}
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setFilter('finished');
+                void load(from, to, 'finished');
+              }}
+            >
+              {loading && filter === 'finished' ? 'Loading…' : 'Finished'}
             </button>
             <button className="mst-btn" type="button" onClick={() => navigate(routerPathNames.billing)}>
               Back to billing
@@ -218,9 +266,11 @@ const BillingListPage: React.FC = () => {
         <div className="mst-card-h">
           <span>{visible.length} item{visible.length === 1 ? '' : 's'}{search.trim() ? ` of ${rows.length}` : ''}</span>
           <span className="gold-list-hint">
-            {unfinished
+            {filter === 'unfinished'
               ? 'All dates · finishing wt not entered'
-              : 'Highlighted when finishing and wastage wt are not added'}
+              : filter === 'finished'
+                ? 'Finishing wt entered'
+                : 'Highlighted when finishing and wastage wt are not added'}
           </span>
         </div>
         <div className="gold-list-table-wrap">
@@ -233,9 +283,9 @@ const BillingListPage: React.FC = () => {
                 <th>Item name</th>
                 <th>Size</th>
                 <th>Finishing wt</th>
+                <th>Purity</th>
                 <th>Wastage wt</th>
-                <th>Photo 1</th>
-                <th>Photo 2</th>
+                <th>Photos</th>
               </tr>
             </thead>
             <tbody>
@@ -243,7 +293,11 @@ const BillingListPage: React.FC = () => {
                 <tr>
                   <td colSpan={9} className="gold-list-empty">
                     {rows.length === 0
-                      ? (unfinished ? 'No items without finishing wt' : 'No bills in this date range')
+                      ? (filter === 'unfinished'
+                        ? 'No items without finishing wt'
+                        : filter === 'finished'
+                          ? 'No finished items in this date range'
+                          : 'No bills in this date range')
                       : 'No matching name, phone or item'}
                   </td>
                 </tr>
@@ -251,14 +305,24 @@ const BillingListPage: React.FC = () => {
               {visible.map((row, i) => (
                 <tr key={`${row.billId}-${i}`} className={listRowClass(row)}>
                   <td><RowActs row={row} /></td>
-                  <td>{row.customerName || '-'}</td>
+                  <td>
+                    <div className="gold-list-name-cell">
+                      <span>{row.customerName || '-'}</span>
+                      <PayBadges row={row} />
+                    </div>
+                  </td>
                   <td>{row.phone || '-'}</td>
                   <td>{row.itemName || '-'}</td>
                   <td>{row.itemSize || '-'}</td>
                   <td className={!(Number(row.cost) > 0) ? 'gold-list-wt-pending' : ''}>{wt(row.cost)}</td>
-                  <td className={!(Number(row.metalWt) > 0) ? 'gold-list-wt-pending' : ''}>{wt(row.metalWt)}</td>
-                  <td><Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} /></td>
-                  <td><Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} /></td>
+                  <td>{Number(row.purity) > 0 ? Number(row.purity) : '-'}</td>
+                  <td className={!(Number(row.metalWt) > 0) ? 'gold-list-wt-pending' : ''}>{wt(row.metalWt, 2)}</td>
+                  <td>
+                    <div className="gold-list-card-photos">
+                      <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />
+                      <Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -268,18 +332,26 @@ const BillingListPage: React.FC = () => {
           {!loading && visible.length === 0 && (
             <div className="gold-list-empty">
               {rows.length === 0
-                ? (unfinished ? 'No items without finishing wt' : 'No bills in this date range')
+                ? (filter === 'unfinished'
+                  ? 'No items without finishing wt'
+                  : filter === 'finished'
+                    ? 'No finished items in this date range'
+                    : 'No bills in this date range')
                 : 'No matching name, phone or item'}
             </div>
           )}
           {visible.map((row, i) => (
             <div key={`c-${row.billId}-${i}`} className={`gold-list-card ${listRowClass(row)}`.trim()}>
               <RowActs row={row} />
-              <div className="gold-list-card-name">{row.customerName || '-'}</div>
+              <div className="gold-list-card-head">
+                <div className="gold-list-card-name">{row.customerName || '-'}</div>
+                <PayBadges row={row} />
+              </div>
               <div className="gold-list-card-meta">{row.phone || '-'}</div>
               <div className="gold-list-card-item">{row.itemName || '-'}{row.itemSize ? ` · ${row.itemSize}` : ''}</div>
               <div className={`gold-list-card-wt${!(Number(row.cost) > 0) ? ' gold-list-wt-pending' : ''}`}>Finishing wt: {wt(row.cost)}</div>
-              <div className={`gold-list-card-wt${!(Number(row.metalWt) > 0) ? ' gold-list-wt-pending' : ''}`}>Wastage wt: {wt(row.metalWt)}</div>
+              <div className="gold-list-card-wt">Purity: {Number(row.purity) > 0 ? Number(row.purity) : '-'}</div>
+              <div className={`gold-list-card-wt${!(Number(row.metalWt) > 0) ? ' gold-list-wt-pending' : ''}`}>Wastage wt: {wt(row.metalWt, 2)}</div>
               <div className="gold-list-card-photos">
                 <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />
                 <Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} />
@@ -317,6 +389,10 @@ const BillingListPage: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {shareBillNo && (
+        <FinishedShareCard billNo={shareBillNo} onClose={() => setShareBillNo(null)} />
       )}
 
       {cancelRow && (

@@ -10,6 +10,7 @@ type Line = {
   total: number;
   metalWt?: number;
   itemSize?: string;
+  purity?: number;
   image1?: string;
   image2?: string;
 };
@@ -29,10 +30,10 @@ type Bill = {
   payments: Pay[];
 };
 
-const wt = (n?: number | null) => {
+const wt = (n?: number | null, digits = 3) => {
   const v = Number(n);
   if (!Number.isFinite(v) || v <= 0) return '';
-  return Number(v).toFixed(3);
+  return Number(v).toFixed(digits);
 };
 
 const payLabel = (mode?: string | null) => {
@@ -131,7 +132,8 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                   <div className="gbd-item-info">
                     <div className="gbd-item-name">{line.name || '-'}{line.itemSize ? ` · ${line.itemSize}` : ''}</div>
                     {wt(line.price) ? <div className="gbd-item-wt">Finishing wt: {wt(line.price)}</div> : null}
-                    {wt(line.metalWt) ? <div className="gbd-item-wt">Wastage wt: {wt(line.metalWt)}</div> : null}
+                    {Number(line.purity) > 0 ? <div className="gbd-item-wt">Purity: {line.purity}</div> : null}
+                    {wt(line.metalWt, 2) ? <div className="gbd-item-wt">Wastage wt: {wt(line.metalWt, 2)}</div> : null}
                   </div>
                 </div>
               ))}

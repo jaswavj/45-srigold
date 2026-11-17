@@ -108,8 +108,9 @@ public class BillingController {
     @GetMapping("/item-list")
     public ResponseDO itemList(@RequestParam(required = false) String from,
                                @RequestParam(required = false) String to,
-                               @RequestParam(required = false) Boolean unfinished) {
-        return ok(readService.itemList(from, to, Boolean.TRUE.equals(unfinished)));
+                               @RequestParam(required = false) Boolean unfinished,
+                               @RequestParam(required = false) Boolean finished) {
+        return ok(readService.itemList(from, to, Boolean.TRUE.equals(unfinished), Boolean.TRUE.equals(finished)));
     }
 
     @GetMapping("/gallery")

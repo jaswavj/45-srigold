@@ -291,7 +291,7 @@ public class AdminService {
             throw new RuntimeException(block);
         }
         List<Map<String, Object>> bills = jdbcTemplate.queryForList(
-                "SELECT customerId, currentBalance FROM prod_bill WHERE id = ? AND is_cancelled = 0",
+                "SELECT customerId, currentBalance, paid, payable FROM prod_bill WHERE id = ? AND is_cancelled = 0",
                 billId
         );
         if (bills.isEmpty()) {
@@ -299,6 +299,7 @@ public class AdminService {
         }
         long customerId = toL(bills.get(0).get("customerId"));
         double dueAmount = toD(bills.get(0).get("currentBalance"));
+        double extra = Math.max(0, toD(bills.get(0).get("paid")) - toD(bills.get(0).get("payable")));
         jdbcTemplate.update("UPDATE prod_bill SET is_cancelled = 1 WHERE id = ?", billId);
         jdbcTemplate.update(
                 "INSERT INTO prod_bill_cancel (bill_id, reason, date, time, uid) VALUES (?, ?, CURDATE(), CURTIME(), ?)",
@@ -312,6 +313,12 @@ public class AdminService {
             if (rows == 0) {
                 jdbcTemplate.update("INSERT INTO customer_account (customer_id, advance, balance) VALUES (?, 0.00, 0.00)", customerId);
             }
+        }
+        if (customerId > 0 && extra > 0.001) {
+            jdbcTemplate.update(
+                    "UPDATE customer_account SET advance = GREATEST(0, advance - ?) WHERE customer_id = ?",
+                    extra, customerId
+            );
         }
         List<AdminBillLine> lines = jdbcTemplate.query(
                 "SELECT bd.id, bd.prod_id, p.name AS product_name, bd.qty, bd.price, bd.disc, bd.total " +

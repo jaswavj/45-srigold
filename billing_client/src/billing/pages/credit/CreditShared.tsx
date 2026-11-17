@@ -8,9 +8,11 @@ import './Credit.css';
 
 export type PartyKind = 'customer' | 'supplier';
 
+type PartyRow = { id: number; name: string; phone: string; balance: number };
 type Summary = {
   totals: { dueCount: number; totalDue: number; totalAdvance: number };
-  dueList: { id: number; name: string; phone: string; balance: number }[];
+  dueList: PartyRow[];
+  advanceList: PartyRow[];
 };
 
 type SearchHit = { id: number; name: string; phone: string };
@@ -59,6 +61,7 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<SearchHit | null>(null);
   const [dueOpen, setDueOpen] = useState(false);
+  const [advanceOpen, setAdvanceOpen] = useState(false);
   const timer = useRef<number | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
@@ -130,7 +133,7 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
           <div className="crd-stat-l">{isCustomer ? 'Total Balance' : 'Total Due'}</div>
           <div className={`crd-stat-v ${(totals?.totalDue || 0) > 0 ? 'due' : 'ok'}`}>{fmtAmt(totals?.totalDue || 0, isCustomer)}</div>
         </div>
-        <div className="mst-card crd-stat">
+        <div className="mst-card crd-stat clickable" onClick={() => setAdvanceOpen(true)}>
           <div className="crd-stat-l">Total Advance</div>
           <div className="crd-stat-v ok">{fmtAmt(totals?.totalAdvance || 0, isCustomer)}</div>
         </div>
@@ -176,7 +179,7 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
             <div className="crd-selected">
               <div>
                 <div style={{ fontWeight: 700 }}>{selected.name}</div>
-                <div style={{ fontSize: 13, color: '#555' }}>{selected.phone !== '-' ? selected.phone : ''}</div>
+                <div className="crd-selected-phone">{selected.phone !== '-' ? selected.phone : ''}</div>
               </div>
               <button className="mst-btn mst-btn-green" type="button" onClick={() => openAccount(selected.id)}>
                 View Account <i className="fas fa-arrow-right" />
@@ -216,11 +219,56 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
                     <tr><td colSpan={4} className="mst-empty">{isCustomer ? 'No outstanding balance.' : 'No outstanding dues.'}</td></tr>
                   ) : (
                     summary!.dueList.map((row, i) => (
-                      <tr key={row.id} className="crd-due-row" onClick={() => openAccount(row.id)}>
+                      <tr key={row.id} className="crd-due-row" onClick={() => row.id > 0 && openAccount(row.id)}>
                         <td>{i + 1}</td>
                         <td style={{ fontWeight: 700 }}>{row.name}</td>
                         <td>{row.phone}</td>
                         <td className="num" style={{ color: '#dc2626', fontWeight: 800 }}>{fmtAmt(row.balance, isCustomer)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {advanceOpen && (
+        <div className="crd-modal" onClick={() => setAdvanceOpen(false)}>
+          <div className="crd-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="crd-modal-h">
+              <div>
+                <div style={{ fontWeight: 800 }}>
+                  <i className="fas fa-coins" style={{ color: '#16a34a', marginRight: 8 }} />
+                  {party}s with Advance
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
+                  {summary?.advanceList?.length || 0} {party.toLowerCase()}{(summary?.advanceList?.length || 0) !== 1 ? 's' : ''} | Total: {fmtAmt(totals?.totalAdvance || 0, isCustomer)}
+                </div>
+              </div>
+              <button className="mst-icon-btn" type="button" onClick={() => setAdvanceOpen(false)}>&times;</button>
+            </div>
+            <div className="crd-modal-body">
+              <table className="mst-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>{party}</th>
+                    <th>Phone</th>
+                    <th className="num">Advance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(summary?.advanceList || []).length === 0 ? (
+                    <tr><td colSpan={4} className="mst-empty">No advance.</td></tr>
+                  ) : (
+                    summary!.advanceList.map((row, i) => (
+                      <tr key={`${row.id}-${i}`} className="crd-adv-row" onClick={() => row.id > 0 && openAccount(row.id)}>
+                        <td>{i + 1}</td>
+                        <td style={{ fontWeight: 700 }}>{row.name}</td>
+                        <td>{row.phone}</td>
+                        <td className="num" style={{ color: '#16a34a', fontWeight: 800 }}>{fmtAmt(row.balance, isCustomer)}</td>
                       </tr>
                     ))
                   )}
@@ -322,6 +370,31 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
     const paid = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
     return Math.max(0, (account?.balance || 0) - paid);
   }, [entryType, cashPaid, bankPaid, payMode, account]);
+
+  const collectSplit = useMemo(() => {
+    if (!isCustomer || entryType !== 'COLLECTION') return [];
+    const cash = parseFloat(cashPaid) || 0;
+    const bank = parseFloat(bankPaid) || 0;
+    let left = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
+    if (left <= 0) return [];
+    const bills = (account?.timeline || [])
+      .filter((row) => (row.type || '').toUpperCase() === 'BILL' && (row.pending || 0) > 0.0005)
+      .slice()
+      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+    const rows: { docNo: string; take: number; left: number }[] = [];
+    for (const bill of bills) {
+      if (left <= 0.0005) break;
+      const due = Number(bill.pending) || 0;
+      const take = Math.min(left, due);
+      rows.push({
+        docNo: bill.docNo || `#${bill.refId}`,
+        take,
+        left: Math.max(0, due - take),
+      });
+      left -= take;
+    }
+    return rows;
+  }, [isCustomer, entryType, cashPaid, bankPaid, payMode, account]);
 
   const submit = async () => {
     setFormError('');
@@ -605,7 +678,19 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               {entryType === 'COLLECTION' && (
                 <div className="mst-fg">
                   <label>{isCustomer ? 'Remaining balance wt' : 'Remaining Balance'}</label>
-                  <input className="mst-inp" readOnly value={remaining.toFixed(digits)} style={{ fontWeight: 700, color: '#dc2626', background: '#f8fafc' }} />
+                  <input className="mst-inp crd-remain" readOnly value={remaining.toFixed(digits)} />
+                </div>
+              )}
+              {isCustomer && entryType === 'COLLECTION' && collectSplit.length > 0 && (
+                <div className="crd-split">
+                  <div className="crd-split-h">Will apply to oldest unpaid bills first</div>
+                  {collectSplit.map((row) => (
+                    <div key={row.docNo} className="crd-split-row">
+                      <span>{row.docNo}</span>
+                      <span>collect {row.take.toFixed(3)}</span>
+                      <span className={row.left > 0.0005 ? 'due' : 'ok'}>left {row.left.toFixed(3)}</span>
+                    </div>
+                  ))}
                 </div>
               )}
               <div className="mst-actions">

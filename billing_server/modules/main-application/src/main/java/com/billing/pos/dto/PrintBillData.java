@@ -58,6 +58,7 @@ public class PrintBillData {
         private String image2;
         private Double metalWt;
         private String itemSize;
+        private Double purity;
     }
 
     @Data

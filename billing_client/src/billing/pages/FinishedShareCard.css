@@ -1,0 +1,235 @@
+.gold-share-back {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  background: rgba(15, 23, 42, 0.62);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  padding: 18px 12px 28px;
+}
+
+.gold-share-panel {
+  width: min(390px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gold-share-loading {
+  background: #fff;
+  border-radius: 14px;
+  padding: 36px 20px;
+  text-align: center;
+  font-weight: 800;
+  color: #334155;
+}
+
+.gold-share-card {
+  width: 390px;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: #fffaf2;
+  color: #3b2a12;
+  border: 1px solid #e4c890;
+  border-radius: 16px;
+  padding: 16px 14px 14px;
+  box-shadow: 0 18px 40px rgba(60, 40, 10, 0.18);
+  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+}
+
+.gold-share-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ead7a8;
+}
+
+.gold-share-mark {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.gold-share-top > div {
+  min-width: 0;
+}
+
+.gold-share-shop {
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  color: #7a5410;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+.gold-share-addr {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a6a3a;
+}
+
+.gold-share-title {
+  margin: 14px 0 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #a07828;
+}
+
+.gold-share-meta,
+.gold-share-cust {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.gold-share-meta span,
+.gold-share-cust span {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #a07828;
+}
+
+.gold-share-meta b,
+.gold-share-cust b {
+  font-size: 13px;
+  font-weight: 800;
+  color: #3b2a12;
+  overflow-wrap: anywhere;
+}
+
+.gold-share-items {
+  width: 100%;
+  font-size: 13px;
+}
+
+.gold-share-items-head,
+.gold-share-item-row .n {
+  display: none;
+}
+
+.gold-share-item-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  padding: 10px 0 12px;
+  border-bottom: 1px solid #ead7a8;
+  font-weight: 700;
+}
+
+.gold-share-item-row .item {
+  grid-column: 1 / -1;
+}
+
+.gold-share-item-row .kv {
+  background: #fff7e8;
+  border: 1px solid #ead7a8;
+  border-radius: 8px;
+  padding: 7px 8px;
+  min-width: 0;
+}
+
+.gold-share-item-row .kv span {
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #a07828;
+  margin-bottom: 2px;
+}
+
+.gold-share-item-row .kv b {
+  display: block;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.gold-share-item-name {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.gold-share-photos {
+  display: flex;
+  gap: 6px;
+}
+
+.gold-share-photos img {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #ead7a8;
+  background: #fff;
+}
+
+.gold-share-totals {
+  margin-top: 12px;
+  background: #fff;
+  border: 1px solid #ead7a8;
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.gold-share-totals > div {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gold-share-totals .gold-share-total,
+.gold-share-totals .due,
+.gold-share-totals .ok {
+  border-top: 1px solid #ead7a8;
+  margin-top: 4px;
+  padding-top: 8px;
+  font-size: 15px;
+}
+
+.gold-share-totals .due b {
+  color: #b45309;
+}
+
+.gold-share-totals .ok b {
+  color: #15803d;
+}
+
+.gold-share-thanks {
+  margin-top: 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a6a3a;
+}
+
+.gold-share-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: stretch;
+  gap: 8px;
+}
+
+.gold-share-acts .mst-btn {
+  flex: 1 1 100%;
+}
+
+.gold-share-wa {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}

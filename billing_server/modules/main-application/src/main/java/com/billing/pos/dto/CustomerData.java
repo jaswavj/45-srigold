@@ -13,4 +13,5 @@ public class CustomerData {
     private Integer isGst;
     private Integer isEligibleForCommission;
     private Double exchangePoint;
+    private Double advance;
 }

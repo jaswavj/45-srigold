@@ -8,4 +8,5 @@ import java.util.List;
 public class CreditSummaryData {
     private AccountTotalsData totals;
     private List<DuePartyData> dueList;
+    private List<DuePartyData> advanceList;
 }

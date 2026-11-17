@@ -25,5 +25,6 @@ public class SaveBillRequest {
     private Double balance;
     private Long quotationId;
     private Double exchangePointUsed;
+    private Double advanceUsed;
     private List<BillLineRequest> products;
 }

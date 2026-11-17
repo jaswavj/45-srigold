@@ -28,13 +28,14 @@ export class BillingApiService {
   holdDetails = (id: number) => this.http.get(`/v1/billing/holds/${id}`);
   printHold = (id: number) => this.http.get(`/v1/billing/holds/${id}/print`);
   cancelHold = (id: number) => this.http.post(`/v1/billing/holds/${id}/cancel`, {});
-  itemList = (from?: string, to?: string, unfinished = false) => {
+  itemList = (from?: string, to?: string, unfinished = false, finished = false) => {
     const params = new URLSearchParams();
     if (unfinished) {
       params.set('unfinished', '1');
     } else {
       if (from) params.set('from', from);
       if (to) params.set('to', to);
+      if (finished) params.set('finished', '1');
     }
     return this.http.get(`/v1/billing/item-list?${params.toString()}`);
   };

@@ -19,4 +19,5 @@ public class QuotationLineData {
     private String image2;
     private Double metalWt;
     private String itemSize;
+    private Double purity;
 }

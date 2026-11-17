@@ -20,6 +20,7 @@ public class EditBillLoadData {
     private Double balance;
     private Double payable;
     private Double exchangePoint;
+    private Double advance;
     private Integer isEligibleForCommission;
     private List<QuotationLineData> products;
 }
