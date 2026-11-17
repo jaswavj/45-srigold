@@ -46,9 +46,11 @@ public class BillingReadService {
         addTableColumn("prod_bill_details", "image1", "VARCHAR(255) NULL");
         addTableColumn("prod_bill_details", "image2", "VARCHAR(255) NULL");
         addTableColumn("prod_bill_details", "metal_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addTableColumn("prod_bill_details", "item_size", "VARCHAR(50) NULL");
         addTableColumn("prod_quotation_details", "image1", "VARCHAR(255) NULL");
         addTableColumn("prod_quotation_details", "image2", "VARCHAR(255) NULL");
         addTableColumn("prod_quotation_details", "metal_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addTableColumn("prod_quotation_details", "item_size", "VARCHAR(50) NULL");
         quotationFlagsReady = true;
     }
 
@@ -268,7 +270,7 @@ public class BillingReadService {
         return jdbcTemplate.query(
                 "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(b.id, 0) AS batch_id, IFNULL(b.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
-                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt " +
+                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size " +
                         "FROM prod_quotation_details d " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
                         "LEFT JOIN prod_batch b ON b.product_id = p.id " +
@@ -290,6 +292,7 @@ public class BillingReadService {
                     row.setImage1(nz(rs.getString("image1")));
                     row.setImage2(nz(rs.getString("image2")));
                     row.setMetalWt(rs.getDouble("metal_wt"));
+                    row.setItemSize(nz(rs.getString("item_size")));
                     return row;
                 },
                 quotId
@@ -410,7 +413,7 @@ public class BillingReadService {
         bill.setProducts(jdbcTemplate.query(
                 "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(d.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
-                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, " +
+                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, " +
                         "IFNULL((SELECT id FROM prod_batch WHERE product_id = d.prod_id ORDER BY id DESC LIMIT 1), 0) AS batch_id " +
                         "FROM prod_bill_details d " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
@@ -432,6 +435,7 @@ public class BillingReadService {
                     row.setImage1(nz(rs.getString("image1")));
                     row.setImage2(nz(rs.getString("image2")));
                     row.setMetalWt(rs.getDouble("metal_wt"));
+                    row.setItemSize(nz(rs.getString("item_size")));
                     return row;
                 },
                 bill.getBillId()
@@ -439,45 +443,55 @@ public class BillingReadService {
         return bill;
     }
 
-    public List<BillingListItemData> itemList(String from, String to) {
+    public List<BillingListItemData> itemList(String from, String to, boolean unfinished) {
         ensureQuotationFlags();
-        String start = (from == null || from.isBlank()) ? java.time.LocalDate.now().toString() : from.trim();
-        String end = (to == null || to.isBlank()) ? java.time.LocalDate.now().toString() : to.trim();
-        return jdbcTemplate.query(
+        String sql =
                 "SELECT b.id AS bill_id, b.bill_display, b.date, b.time, " +
                         "IFNULL(NULLIF(TRIM(c.name), ''), IFNULL(b.cusName, '')) AS customer_name, " +
                         "IFNULL(NULLIF(TRIM(c.phone_number), ''), IFNULL(b.cusPhn, '')) AS phone, " +
-                        "p.name AS item_name, IFNULL(d.metal_wt, 0) AS metal_wt, d.price AS cost, " +
+                        "p.name AS item_name, IFNULL(d.item_size, '') AS item_size, IFNULL(d.metal_wt, 0) AS metal_wt, d.price AS cost, " +
                         "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2 " +
                         "FROM prod_bill b " +
                         "JOIN prod_bill_details d ON d.bill_id = b.id " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
                         "LEFT JOIN customers c ON c.id = b.customerId " +
-                        "WHERE IFNULL(b.is_cancelled, 0) = 0 AND b.date BETWEEN ? AND ? " +
-                        "ORDER BY b.date DESC, b.time DESC, b.id DESC, d.id",
-                (rs, i) -> {
-                    BillingListItemData row = new BillingListItemData();
-                    row.setBillId(rs.getLong("bill_id"));
-                    row.setBillDisplay(rs.getString("bill_display"));
-                    row.setDate(String.valueOf(rs.getDate("date")));
-                    row.setTime(String.valueOf(rs.getTime("time")));
-                    String name = nz(rs.getString("customer_name"));
-                    row.setCustomerName("-".equals(name) ? "" : name);
-                    String phone = nz(rs.getString("phone"));
-                    row.setPhone("-".equals(phone) ? "" : phone);
-                    row.setItemName(nz(rs.getString("item_name")));
-                    row.setMetalWt(rs.getDouble("metal_wt"));
-                    row.setCost(rs.getDouble("cost"));
-                    String image1 = nz(rs.getString("image1"));
-                    String image2 = nz(rs.getString("image2"));
-                    row.setImage1(image1);
-                    row.setImage2(image2);
-                    row.setMissingImage(image1.isBlank() && image2.isBlank());
-                    return row;
-                },
+                        "WHERE IFNULL(b.is_cancelled, 0) = 0 ";
+        if (unfinished) {
+            return jdbcTemplate.query(
+                    sql + "AND IFNULL(d.price, 0) <= 0 ORDER BY b.date DESC, b.time DESC, b.id DESC, d.id",
+                    this::mapListItem
+            );
+        }
+        String start = (from == null || from.isBlank()) ? java.time.LocalDate.now().toString() : from.trim();
+        String end = (to == null || to.isBlank()) ? java.time.LocalDate.now().toString() : to.trim();
+        return jdbcTemplate.query(
+                sql + "AND b.date BETWEEN ? AND ? ORDER BY b.date DESC, b.time DESC, b.id DESC, d.id",
+                this::mapListItem,
                 start,
                 end
         );
+    }
+
+    private BillingListItemData mapListItem(java.sql.ResultSet rs, int i) throws java.sql.SQLException {
+        BillingListItemData row = new BillingListItemData();
+        row.setBillId(rs.getLong("bill_id"));
+        row.setBillDisplay(rs.getString("bill_display"));
+        row.setDate(String.valueOf(rs.getDate("date")));
+        row.setTime(String.valueOf(rs.getTime("time")));
+        String name = nz(rs.getString("customer_name"));
+        row.setCustomerName("-".equals(name) ? "" : name);
+        String phone = nz(rs.getString("phone"));
+        row.setPhone("-".equals(phone) ? "" : phone);
+        row.setItemName(nz(rs.getString("item_name")));
+        row.setItemSize(nz(rs.getString("item_size")));
+        row.setMetalWt(rs.getDouble("metal_wt"));
+        row.setCost(rs.getDouble("cost"));
+        String image1 = nz(rs.getString("image1"));
+        String image2 = nz(rs.getString("image2"));
+        row.setImage1(image1);
+        row.setImage2(image2);
+        row.setMissingImage(image1.isBlank() && image2.isBlank());
+        return row;
     }
 
     public List<GalleryPhotoData> gallery(String item) {
@@ -622,7 +636,7 @@ public class BillingReadService {
                 "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, IFNULL(d.is_exchanged,0) AS is_exchanged, " +
                         "IFNULL(cat.name,'') AS category_name, " +
                         "CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN '' ELSE CAST(p.hsn AS CHAR) END AS hsn, " +
-                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt " +
+                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size,'') AS item_size " +
                         "FROM prod_bill_details d JOIN prod_product p ON p.id = d.prod_id " +
                         "JOIN prod_bill b ON b.id = d.bill_id " +
                         "LEFT JOIN prod_category cat ON cat.id = p.category_id " +
@@ -644,6 +658,7 @@ public class BillingReadService {
                     line.setImage1(nz(rs.getString("image1")));
                     line.setImage2(nz(rs.getString("image2")));
                     line.setMetalWt(rs.getDouble("metal_wt"));
+                    line.setItemSize(nz(rs.getString("item_size")));
                     return line;
                 },
                 billNo

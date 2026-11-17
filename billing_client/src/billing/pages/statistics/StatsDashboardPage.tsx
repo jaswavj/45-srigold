@@ -240,15 +240,14 @@ const StatsDashboardPage: React.FC = () => {
       </div>
       {data && (
         <>
-          <div className="st-kpis">
+          <div className="st-kpis st-kpis-2">
             <div className="st-kpi sales">
               <span className="st-kpi-art st-kpi-art-chart" aria-hidden />
               <i className="st-kpi-deco fas fa-chart-line" aria-hidden />
               <div className="st-kpi-body">
-                <div className="st-kpi-l">Total Income</div>
-                <div className="st-kpi-v">₹ {n(data.sales)}</div>
+                <div className="st-kpi-l">Collected Wt</div>
+                <div className="st-kpi-v">{Number(data.sales || 0).toFixed(3)}</div>
                 <div className="st-kpi-t">{trend(data.salesPct, data.lastSales)}</div>
-                {Number(data.exchPoint) > 0 && <div className="st-kpi-t">Includes ₹ {n(data.exchPoint)} exchange point</div>}
               </div>
             </div>
             <div className="st-kpi expense">
@@ -258,15 +257,6 @@ const StatsDashboardPage: React.FC = () => {
                 <div className="st-kpi-l">Total Expense</div>
                 <div className="st-kpi-v">₹ {n(data.expense)}</div>
                 <div className="st-kpi-t">{trend(data.expensePct, data.lastExpense)}</div>
-              </div>
-            </div>
-            <div className={`st-kpi profit ${data.netProfit >= 0 ? 'up' : 'down'}`}>
-              <span className="st-kpi-art st-kpi-art-trend" aria-hidden />
-              <i className={`st-kpi-deco fas ${data.netProfit >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`} aria-hidden />
-              <div className="st-kpi-body">
-                <div className="st-kpi-l">Net Profit</div>
-                <div className="st-kpi-v">₹ {n(data.netProfit)}</div>
-                <div className="st-kpi-t">{trend(data.profitPct, data.lastProfit)}</div>
               </div>
             </div>
           </div>

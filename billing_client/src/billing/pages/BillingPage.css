@@ -281,21 +281,26 @@
 
 .pos-table-gold th:nth-child(2),
 .pos-table-gold td:nth-child(2) {
-  width: 38%;
+  width: 32%;
   font-size: 13.5px;
   font-weight: 650;
   word-break: break-word;
 }
 
 .pos-table-gold th:nth-child(3),
-.pos-table-gold td:nth-child(3),
+.pos-table-gold td:nth-child(3) {
+  width: 6.5rem;
+}
+
 .pos-table-gold th:nth-child(4),
-.pos-table-gold td:nth-child(4) {
+.pos-table-gold td:nth-child(4),
+.pos-table-gold th:nth-child(5),
+.pos-table-gold td:nth-child(5) {
   width: 8.5rem;
 }
 
-.pos-table-gold th:nth-child(5),
-.pos-table-gold td:nth-child(5) {
+.pos-table-gold th:nth-child(6),
+.pos-table-gold td:nth-child(6) {
   width: 8rem;
 }
 
@@ -307,6 +312,16 @@
 .pos-table-gold .pos-btn {
   height: 36px;
   border-radius: 5px;
+}
+
+.pos-table-gold tr.gold-line-missing-wt td {
+  background: #fff7ed;
+}
+
+.pos-table-gold tr.gold-line-missing-wt td:nth-child(4) .pos-inp,
+.pos-table-gold tr.gold-line-missing-wt td:nth-child(5) .pos-inp {
+  background: #ffedd5;
+  border-color: #fdba74;
 }
 
 .pos-img-slots {
@@ -413,6 +428,11 @@
 .gold-item-name {
   flex: 2.2;
   min-width: 160px;
+}
+
+.gold-item-size {
+  flex: 0.7;
+  min-width: 88px;
 }
 
 .gold-item-wt {
@@ -947,12 +967,21 @@
 }
 
 .pos-save-due-chip.over-paid {
-  border-color: #ef4444;
-  background: #fef2f2;
+  border-color: #f59e0b;
+  background: #fffbeb;
 }
 
 .pos-save-due-chip.over-paid strong {
-  color: #b91c1c;
+  color: #b45309;
+}
+
+.pos-save-due-chip.advance {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-bg-surface));
+}
+
+.pos-save-due-chip.advance strong {
+  color: var(--color-primary);
 }
 
 .pos-save-inline {
@@ -1147,7 +1176,8 @@
   }
 
   .pos-save-due-chip.has-due,
-  .pos-save-due-chip.over-paid {
+  .pos-save-due-chip.over-paid,
+  .pos-save-due-chip.advance {
     border-width: 2px;
   }
 
@@ -1239,13 +1269,14 @@
   .gold-form-customer,
   .gold-form-item {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1.55fr) minmax(92px, 0.8fr);
     gap: 10px;
     align-items: end;
   }
 
   .gold-form-customer .pos-fg,
   .gold-item-name,
+  .gold-item-size,
   .gold-item-wt,
   .gold-item-amt,
   .gold-item-imgs {
@@ -1254,7 +1285,11 @@
   }
 
   .gold-item-name {
-    grid-column: 1 / -1;
+    grid-column: 1;
+  }
+
+  .gold-item-size {
+    grid-column: 2;
   }
 
   .gold-item-amt {
@@ -1325,13 +1360,27 @@
   }
 
   .gold-line-card {
-    background: var(--color-bg-surface);
-    border: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+    background: color-mix(in srgb, var(--color-primary) 7%, var(--color-bg-page));
+    border: 1px solid color-mix(in srgb, var(--color-primary) 16%, transparent);
     border-radius: 12px;
     padding: 12px;
     display: flex;
     flex-direction: column;
     gap: 10px;
+  }
+
+  .gold-line-card .pos-inp {
+    background: var(--color-bg-surface);
+  }
+
+  .gold-line-card.gold-line-missing-wt {
+    background: color-mix(in srgb, #f59e0b 12%, var(--color-bg-page));
+    border-color: color-mix(in srgb, #f59e0b 38%, transparent);
+  }
+
+  .gold-line-card.gold-line-missing-wt .pos-inp {
+    background: #fff7ed;
+    border-color: #fdba74;
   }
 
   .gold-line-card-top {
@@ -1353,15 +1402,22 @@
 
   .gold-line-card-body {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .gold-line-card-body .pos-img-slots {
+    flex: 0 0 auto;
+    align-items: flex-end;
   }
 
   .gold-card-fields {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 10px;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
   }
 
   .gold-card-wt,

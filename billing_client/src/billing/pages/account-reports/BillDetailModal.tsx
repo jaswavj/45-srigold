@@ -9,6 +9,7 @@ type Line = {
   price: number;
   total: number;
   metalWt?: number;
+  itemSize?: string;
   image1?: string;
   image2?: string;
 };
@@ -128,7 +129,7 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                     <Photo fileName={line.image2} onOpen={() => openPhoto(line, 2)} />
                   </div>
                   <div className="gbd-item-info">
-                    <div className="gbd-item-name">{line.name || '-'}</div>
+                    <div className="gbd-item-name">{line.name || '-'}{line.itemSize ? ` · ${line.itemSize}` : ''}</div>
                     {wt(line.price) ? <div className="gbd-item-wt">Finishing wt: {wt(line.price)}</div> : null}
                     {wt(line.metalWt) ? <div className="gbd-item-wt">Wastage wt: {wt(line.metalWt)}</div> : null}
                   </div>

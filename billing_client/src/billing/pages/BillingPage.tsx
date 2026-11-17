@@ -50,6 +50,7 @@ type Line = {
   image1: string;
   image2: string;
   metalWt: number;
+  itemSize: string;
 };
 
 type Customer = {
@@ -68,6 +69,8 @@ const parseWt = (v: string) => {
   const n = parseFloat(v);
   return Number.isFinite(n) && n >= 0 ? n : 0;
 };
+const missingLineWt = (line: Pick<Line, 'price' | 'metalWt'>) =>
+  !(Number(line.price) > 0) && !(Number(line.metalWt) > 0);
 
 const CafeItemIcon: React.FC = () => (
   <svg className="cafe-item-svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -155,8 +158,10 @@ const BillingPage: React.FC = () => {
   const [draftImage1, setDraftImage1] = useState('');
   const [draftImage2, setDraftImage2] = useState('');
   const [draftMetalWt, setDraftMetalWt] = useState('');
+  const [draftSize, setDraftSize] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const sizeRef = useRef<HTMLInputElement>(null);
   const metalWtRef = useRef<HTMLInputElement>(null);
   const finishingRef = useRef<HTMLInputElement>(null);
   const hitRef = useRef<HTMLButtonElement>(null);
@@ -270,6 +275,7 @@ const BillingPage: React.FC = () => {
           image1: item.image1 || '',
           image2: item.image2 || '',
           metalWt: Number(item.metalWt) || 0,
+          itemSize: item.itemSize || '',
         })));
         setLineKey(items.length + 1);
         const empty = (v?: string) => (!v || v === '-' ? '' : v);
@@ -307,9 +313,11 @@ const BillingPage: React.FC = () => {
   const cashAmt = parseFloat(cashPaid) || 0;
   const paidAmt = cashAmt;
   const dueAmt = Math.max(0, payable - paidAmt);
-  const paidOver = paidAmt - payable > 0.001;
-  const needsCustomerForDue =
-    dueAmt > 0.001 && (!customerName.trim() || customerName.trim() === '-');
+  const extraAmt = Math.max(0, paidAmt - payable);
+  const weightsPending = lines.length > 0 && payable < 0.001;
+  const missingName = !customerName.trim() || customerName.trim() === '-';
+  const missingPhone = !customerPhone.trim() || customerPhone.trim() === '-';
+  const needsCustomer = missingName || missingPhone;
 
   useEffect(() => {
     if (!bypassCap && totals.priceTotal > 0 && discPer < 100) {
@@ -439,8 +447,8 @@ const BillingPage: React.FC = () => {
 
   const focusQty = () => {
     requestAnimationFrame(() => {
-      finishingRef.current?.focus();
-      finishingRef.current?.select();
+      sizeRef.current?.focus();
+      sizeRef.current?.select();
     });
   };
 
@@ -455,7 +463,6 @@ const BillingPage: React.FC = () => {
   const applyProduct = (p: Product) => {
     setPending(p);
     setSearch(p.name);
-    setPrice((prev) => prev || String(p.mrp ?? ''));
     setStock(p.stock ?? 0);
     setUnitSel('');
     setNameHits([]);
@@ -608,6 +615,7 @@ const BillingPage: React.FC = () => {
       image1: '',
       image2: '',
       metalWt: 0,
+      itemSize: '',
     };
   };
 
@@ -620,18 +628,14 @@ const BillingPage: React.FC = () => {
     }
     const unitPrice = parseWt(price);
     const metalWt = parseWt(draftMetalWt);
-    if (unitPrice <= 0 && metalWt <= 0) {
-      toast.error('Enter finishing wt or wastage wt');
-      finishingRef.current?.focus();
-      return;
-    }
     markSaleDraft();
     const stamp = linesStampRef.current;
     setLines((prev) => {
       if (linesStampRef.current !== stamp) return prev;
       const key = prev.reduce((m, l) => Math.max(m, l.key), 0) + 1;
+      const itemSize = draftSize.trim();
       const line: Line = pending && matchesPending(itemName, pending)
-        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt }
+        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt, itemSize }
         : {
           key,
           productId: 0,
@@ -651,6 +655,7 @@ const BillingPage: React.FC = () => {
           image1: draftImage1,
           image2: draftImage2,
           metalWt,
+          itemSize,
         };
       return [...prev, line];
     });
@@ -664,6 +669,7 @@ const BillingPage: React.FC = () => {
     setDraftImage1('');
     setDraftImage2('');
     setDraftMetalWt('');
+    setDraftSize('');
     setNameHits([]);
     searchRef.current?.focus();
   };
@@ -788,6 +794,10 @@ const BillingPage: React.FC = () => {
     setLines((prev) => prev.map((line) => (line.key === key ? { ...line, metalWt } : line)));
   };
 
+  const updateLineSize = (key: number, value: string) => {
+    setLines((prev) => prev.map((line) => (line.key === key ? { ...line, itemSize: value } : line)));
+  };
+
   const collectProducts = () =>
     lines.map((l) => ({
       id: l.productId,
@@ -801,6 +811,7 @@ const BillingPage: React.FC = () => {
       image1: l.image1 || '',
       image2: l.image2 || '',
       metalWt: l.metalWt || 0,
+      itemSize: (l.itemSize || '').trim(),
     }));
 
   const payloadBase = () => ({
@@ -863,14 +874,16 @@ const BillingPage: React.FC = () => {
   const showSavedBill = !!savedNo && savedStamp === billStamp && !editBillId;
 
   const openSave = () => {
-    if (totals.grandTotal === 0 && !savedNo) {
+    if (lines.length === 0 && !savedNo) {
       toast.error('Empty bill. Add products first.');
       return;
     }
     if (!editBillId && activeHoldId() === 0 && quotationId <= 0 && saleTouchGenRef.current !== cartGenRef.current) {
       autoPay.current = true;
       applySaleDefaults();
-      setCashPaid(money(payable));
+      if ((parseFloat(cashPaid) || 0) < 0.001 && payable > 0.001) {
+        setCashPaid(money(payable));
+      }
       setBankPaid('0');
       setBalance('0');
     }
@@ -879,7 +892,7 @@ const BillingPage: React.FC = () => {
 
   const saveBill = async () => {
     if (showSavedBill) return;
-    if (totals.grandTotal === 0) {
+    if (lines.length === 0) {
       toast.error('Empty bill. Add products first.');
       return;
     }
@@ -891,12 +904,12 @@ const BillingPage: React.FC = () => {
       toast.error('Collected wt cannot be negative.');
       return;
     }
-    if (paid > payable + 0.001) {
-      toast.error('Collected wt cannot be more than finishing wt + wastage wt.');
+    if (!customerName.trim() || customerName.trim() === '-') {
+      toast.error('Enter customer name.');
       return;
     }
-    if ((customerName === '' || customerName === '-') && due > 0.001) {
-      toast.error('Enter customer name for due / balance payment.');
+    if (!customerPhone.trim() || customerPhone.trim() === '-') {
+      toast.error('Enter customer phone.');
       return;
     }
     setSaving(true);
@@ -933,7 +946,7 @@ const BillingPage: React.FC = () => {
 
   const saveHold = async () => {
     if (holdSavingRef.current) return;
-    if (totals.grandTotal === 0) {
+    if (lines.length === 0) {
       toast.error('Add products before hold.');
       return;
     }
@@ -1104,6 +1117,7 @@ const BillingPage: React.FC = () => {
       image1: item.image1 || '',
       image2: item.image2 || '',
       metalWt: Number(item.metalWt) || 0,
+      itemSize: item.itemSize || '',
     }));
     setLines((prev) => (holdStillCurrent() ? mapped : prev));
     if (!holdStillCurrent()) return;
@@ -1196,6 +1210,7 @@ const BillingPage: React.FC = () => {
           image1: '',
           image2: '',
           metalWt: Number(item.metalWt) || 0,
+          itemSize: item.itemSize || '',
         });
       }
       setLines(next);
@@ -1490,52 +1505,6 @@ const BillingPage: React.FC = () => {
       ) : (
         <>
           <div className="pos-top gold-form">
-            <div className="gold-form-row gold-form-customer">
-              <div className="pos-fg pos-save-customer-name">
-                <span className={`pos-lbl ${needsCustomerForDue ? 'pos-lbl-warn' : ''}`}>
-                  Customer name{needsCustomerForDue ? ' *' : ''}
-                </span>
-                <input
-                  className={`pos-inp ${needsCustomerForDue ? 'pos-inp-warn' : ''}`}
-                  value={customerName}
-                  autoComplete="off"
-                  placeholder="Name"
-                  role="combobox"
-                  aria-expanded={custField === 'name' && customerHits.length > 0}
-                  aria-autocomplete="list"
-                  onChange={(e) => {
-                    markSaleDraft();
-                    setCustomerName(e.target.value);
-                    setCustomerId(0);
-                    searchCustomers(e.target.value, undefined, 'name');
-                  }}
-                  onKeyDown={onCustomerKey('name')}
-                />
-                {customerSuggest('name')}
-              </div>
-              <div className="pos-fg">
-                <span className="pos-lbl">Phone</span>
-                <input
-                  ref={custPhoneRef}
-                  className="pos-inp"
-                  value={customerPhone}
-                  autoComplete="off"
-                  placeholder="Phone"
-                  inputMode="tel"
-                  role="combobox"
-                  aria-expanded={custField === 'phone' && customerHits.length > 0}
-                  aria-autocomplete="list"
-                  onChange={(e) => {
-                    markSaleDraft();
-                    setCustomerPhone(e.target.value);
-                    setCustomerId(0);
-                    searchCustomers(undefined, e.target.value, 'phone');
-                  }}
-                  onKeyDown={onCustomerKey('phone')}
-                />
-                {customerSuggest('phone')}
-              </div>
-            </div>
             <div className="gold-form-row gold-form-item">
               <div className="pos-fg gold-item-name">
                 <span className="pos-lbl">Item name</span>
@@ -1567,6 +1536,22 @@ const BillingPage: React.FC = () => {
                     ))}
                   </div>
                 )}
+              </div>
+              <div className="pos-fg gold-item-size">
+                <span className="pos-lbl">Size</span>
+                <input
+                  ref={sizeRef}
+                  className="pos-inp"
+                  value={draftSize}
+                  placeholder="Optional"
+                  onChange={(e) => setDraftSize(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    finishingRef.current?.focus();
+                    finishingRef.current?.select();
+                  }}
+                />
               </div>
               <div className="pos-fg gold-item-amt">
                 <span className="pos-lbl">Finishing wt</span>
@@ -1624,19 +1609,27 @@ const BillingPage: React.FC = () => {
             <table className="pos-table pos-table-lines pos-table-gold">
               <thead>
                 <tr>
-                  <th>#</th><th>Item Name</th><th>Finishing wt</th><th>Wastage wt</th><th>Photos</th><th></th>
+                  <th>#</th><th>Item Name</th><th>Size</th><th>Finishing wt</th><th>Wastage wt</th><th>Photos</th><th></th>
                 </tr>
               </thead>
               <tbody>
                 {lines.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="gold-empty">Add item name, finishing wt, wastage wt and photos</td>
+                    <td colSpan={7} className="gold-empty">Add item name. Size, finishing wt, wastage wt and photos can be added later.</td>
                   </tr>
                 )}
                 {lines.map((line, idx) => (
-                  <tr key={line.key}>
+                  <tr key={line.key} className={missingLineWt(line) ? 'gold-line-missing-wt' : ''}>
                     <td>{idx + 1}</td>
                     <td>{line.name}</td>
+                    <td>
+                      <input
+                        className="pos-inp"
+                        value={line.itemSize || ''}
+                        placeholder="—"
+                        onChange={(e) => updateLineSize(line.key, e.target.value)}
+                      />
+                    </td>
                     <td>
                       <input
                         className="pos-inp"
@@ -1682,12 +1675,12 @@ const BillingPage: React.FC = () => {
 
           <div className="gold-line-cards">
             {lines.length === 0 && (
-              <div className="gold-empty-card">Add item name, finishing wt, wastage wt and photos</div>
+              <div className="gold-empty-card">Add item name. Size, finishing wt, wastage wt and photos can be added later.</div>
             )}
             {lines.map((line, idx) => (
-              <div key={line.key} className="gold-line-card">
+              <div key={line.key} className={`gold-line-card${missingLineWt(line) ? ' gold-line-missing-wt' : ''}`}>
                 <div className="gold-line-card-top">
-                  <strong>{idx + 1}. {line.name}</strong>
+                  <strong>{idx + 1}. {line.name}{line.itemSize ? ` · ${line.itemSize}` : ''}</strong>
                   <button className="pos-btn pos-btn-outline gold-card-del" type="button" onClick={() => removeLine(line.key)}>Delete</button>
                 </div>
                 <div className="gold-line-card-body">
@@ -1792,14 +1785,14 @@ const BillingPage: React.FC = () => {
               <p className="pos-save-section-label">Customer</p>
               <div className="pos-save-row pos-save-customer-row">
                 <div className="pos-fg pos-save-customer-name">
-                  <span className={`pos-lbl ${needsCustomerForDue ? 'pos-lbl-warn' : ''}`}>
-                    Customer{needsCustomerForDue ? ' *' : ''}
+                  <span className={`pos-lbl ${missingName ? 'pos-lbl-warn' : ''}`}>
+                    Customer *
                   </span>
                   <input
-                    className={`pos-inp ${needsCustomerForDue ? 'pos-inp-warn' : ''}`}
+                    className={`pos-inp ${missingName ? 'pos-inp-warn' : ''}`}
                     value={customerName}
                     autoComplete="off"
-                    placeholder="Name (required if due)"
+                    placeholder="Name"
                     role="combobox"
                     aria-expanded={custField === 'name' && customerHits.length > 0}
                     aria-autocomplete="list"
@@ -1814,9 +1807,11 @@ const BillingPage: React.FC = () => {
                   {customerSuggest('name')}
                 </div>
                 <div className="pos-fg">
-                  <span className="pos-lbl">Phone</span>
+                  <span className={`pos-lbl ${missingPhone ? 'pos-lbl-warn' : ''}`}>
+                    Phone *
+                  </span>
                   <input
-                    className="pos-inp"
+                    className={`pos-inp ${missingPhone ? 'pos-inp-warn' : ''}`}
                     value={customerPhone}
                     autoComplete="off"
                     placeholder="Phone"
@@ -1855,19 +1850,22 @@ const BillingPage: React.FC = () => {
                     onChange={(e) => { autoPay.current = false; setCashPaid(e.target.value); }}
                   />
                 </div>
-                <div className={`pos-save-due-chip ${dueAmt > 0.001 ? 'has-due' : paidOver ? 'over-paid' : 'settled'}`}>
-                  <span>Due</span>
-                  <strong>{money(dueAmt)}</strong>
+                <div className={`pos-save-due-chip ${dueAmt > 0.001 ? 'has-due' : extraAmt > 0.001 ? (weightsPending ? 'advance' : 'over-paid') : 'settled'}`}>
+                  <span>{dueAmt > 0.001 ? 'Due' : extraAmt > 0.001 ? (weightsPending ? 'Advance' : 'Extra') : 'Due'}</span>
+                  <strong>{money(dueAmt > 0.001 ? dueAmt : extraAmt)}</strong>
                 </div>
               </div>
 
-              {paidOver && (
-                <p className="pos-save-inline pos-save-inline-error">Collected wt exceeds total wt ({money(payable)}).</p>
+              {weightsPending && paidAmt > 0.001 && (
+                <p className="pos-save-inline">Collected now. Due will adjust when finishing and wastage are added.</p>
               )}
-              {needsCustomerForDue && !paidOver && (
-                <p className="pos-save-inline pos-save-inline-warn">Enter customer name for due {money(dueAmt)}.</p>
+              {extraAmt > 0.001 && !weightsPending && (
+                <p className="pos-save-inline pos-save-inline-warn">Extra {money(extraAmt)} after finishing + wastage. Adjust or return this wt.</p>
               )}
-              {dueAmt > 0.001 && !paidOver && !needsCustomerForDue && (
+              {needsCustomer && (
+                <p className="pos-save-inline pos-save-inline-warn">Enter customer name and phone.</p>
+              )}
+              {dueAmt > 0.001 && !needsCustomer && (
                 <p className="pos-save-inline pos-save-inline-warn">Due {money(dueAmt)} → {customerName.trim() || 'customer'}.</p>
               )}
             </div>
@@ -1886,7 +1884,7 @@ const BillingPage: React.FC = () => {
                 <button className="pos-btn pos-btn-outline" type="button" title="Alt+C" onClick={closeSave}>Close</button>
                 <button
                   className={`pos-btn pos-save-primary ${showSavedBill ? 'pos-btn-saved' : ''}`}
-                  disabled={saving || paidOver || needsCustomerForDue || showSavedBill}
+                  disabled={saving || needsCustomer || showSavedBill}
                   title="Alt+B"
                   onClick={saveBill}
                 >

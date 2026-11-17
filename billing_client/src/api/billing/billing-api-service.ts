@@ -28,8 +28,16 @@ export class BillingApiService {
   holdDetails = (id: number) => this.http.get(`/v1/billing/holds/${id}`);
   printHold = (id: number) => this.http.get(`/v1/billing/holds/${id}/print`);
   cancelHold = (id: number) => this.http.post(`/v1/billing/holds/${id}/cancel`, {});
-  itemList = (from: string, to: string) =>
-    this.http.get(`/v1/billing/item-list?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+  itemList = (from?: string, to?: string, unfinished = false) => {
+    const params = new URLSearchParams();
+    if (unfinished) {
+      params.set('unfinished', '1');
+    } else {
+      if (from) params.set('from', from);
+      if (to) params.set('to', to);
+    }
+    return this.http.get(`/v1/billing/item-list?${params.toString()}`);
+  };
   gallery = (item?: string) =>
     this.http.get(`/v1/billing/gallery${item ? `?item=${encodeURIComponent(item)}` : ''}`);
   recentBills = () => this.http.get('/v1/billing/recent');

@@ -11,6 +11,7 @@ public class BillingListItemData {
     private String customerName;
     private String phone;
     private String itemName;
+    private String itemSize;
     private Double metalWt;
     private Double cost;
     private String image1;

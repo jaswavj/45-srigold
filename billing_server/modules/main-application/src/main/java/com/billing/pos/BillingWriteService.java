@@ -34,6 +34,7 @@ public class BillingWriteService {
         if (request.getProducts() == null || request.getProducts().isEmpty()) {
             throw new RuntimeException("Empty Bill. Please Prepare Bill And Save.");
         }
+        requireCustomer(request);
         readService.ensureQuotationFlags();
         Long customerId = resolveCustomer(request);
         resolveProducts(request.getProducts(), uid);
@@ -227,9 +228,6 @@ public class BillingWriteService {
         if (totalPaid < -0.001) {
             throw new RuntimeException("Paid amount cannot be negative.");
         }
-        if (totalPaid > payableAmt + 0.001) {
-            throw new RuntimeException("Paid amount cannot be more than payable amount.");
-        }
         double due = Math.max(0, payableAmt - totalPaid);
         if (due > 0.001 && (customerId == null || customerId <= 0)) {
             throw new RuntimeException("Enter customer name for due / balance payment.");
@@ -241,19 +239,21 @@ public class BillingWriteService {
         int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
         double cost = productCost(line.getId(), line.getBatchId());
         jdbcTemplate.update(
-                "INSERT INTO prod_bill_details (bill_id, prod_id, qty, price, disc, total, gst, cost, commission, image1, image2, metal_wt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO prod_bill_details (bill_id, prod_id, qty, price, disc, total, gst, cost, commission, image1, image2, metal_wt, item_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 billId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()),
                 nz(line.getTotal()), gst, cost, nz(line.getCommission()),
-                blankToNull(line.getImage1()), blankToNull(line.getImage2()), nz(line.getMetalWt())
+                blankToNull(line.getImage1()), blankToNull(line.getImage2()), nz(line.getMetalWt()),
+                blankToNull(line.getItemSize())
         );
     }
 
     private void insertHoldDetail(long quotId, BillLineRequest line, int isTaxBill) {
         int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
         jdbcTemplate.update(
-                "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled, image1, image2, metal_wt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
+                "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled, image1, image2, metal_wt, item_size) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
                 quotId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()), nz(line.getTotal()), gst,
-                blankToNull(line.getImage1()), blankToNull(line.getImage2()), nz(line.getMetalWt())
+                blankToNull(line.getImage1()), blankToNull(line.getImage2()), nz(line.getMetalWt()),
+                blankToNull(line.getItemSize())
         );
     }
 
@@ -353,6 +353,17 @@ public class BillingWriteService {
         return batchId;
     }
 
+    private void requireCustomer(SaveBillRequest request) {
+        String name = request.getCustomerName() == null ? "" : request.getCustomerName().trim();
+        String phone = request.getCustomerPhn() == null ? "" : request.getCustomerPhn().trim();
+        if (name.isEmpty() || "-".equals(name)) {
+            throw new RuntimeException("Enter customer name.");
+        }
+        if (phone.isEmpty() || "-".equals(phone)) {
+            throw new RuntimeException("Enter customer phone.");
+        }
+    }
+
     private Long resolveCustomer(SaveBillRequest request) {
         Long customerId = request.getCustomerId() == null ? 0L : request.getCustomerId();
         String name = request.getCustomerName();
@@ -436,6 +447,7 @@ public class BillingWriteService {
         if (request.getProducts() == null || request.getProducts().isEmpty()) {
             throw new RuntimeException("Empty Bill. Please Prepare Bill And Save.");
         }
+        requireCustomer(request);
         readService.ensureQuotationFlags();
         List<Map<String, Object>> existing = jdbcTemplate.queryForList(
                 "SELECT id, bill_display, customerId, currentBalance, payable, paid, extraDisc, prodDisc, " +

@@ -44,6 +44,22 @@
   font-size: 14px;
 }
 
+.gold-list-date-off {
+  opacity: 0.45;
+}
+
+.gold-list-unfinished {
+  background: #fff7ed;
+  border-color: #f97316;
+  color: #9a3412;
+}
+
+.gold-list-unfinished.on {
+  background: #c2410c;
+  border-color: #c2410c;
+  color: #fff;
+}
+
 .gold-list-page .mst-card-h {
   font-size: 15px;
   font-weight: 800;
@@ -88,7 +104,7 @@
   letter-spacing: 0.2px;
 }
 
-.gold-list-table td:nth-child(4) {
+.gold-list-table td:nth-child(5) {
   font-weight: 800;
   font-size: 16px;
 }
@@ -96,14 +112,34 @@
 .gold-list-acts {
   display: flex;
   gap: 6px;
-  flex-wrap: wrap;
+  align-items: center;
   white-space: nowrap;
 }
 
-.gold-list-act {
-  height: 34px;
-  min-width: 72px;
-  font-size: 13px;
+.gold-list-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.gold-list-icon-edit {
+  background: color-mix(in srgb, var(--color-primary) 12%, #fff);
+  border-color: color-mix(in srgb, var(--color-primary) 28%, transparent);
+  color: var(--color-primary);
+}
+
+.gold-list-icon-del {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
 .gold-list-modal-back {
@@ -242,6 +278,17 @@
   background: #fff7ed;
 }
 
+.gold-list-missing-wt {
+  background: #fff4e5;
+}
+
+.gold-list-table tr.gold-list-missing-wt td:nth-child(6),
+.gold-list-table tr.gold-list-missing-wt td:nth-child(7),
+.gold-list-wt-pending {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
 .gold-list-empty {
   text-align: center;
   padding: 24px 12px;
@@ -296,6 +343,16 @@
     background: #fff7ed;
   }
 
+  .gold-list-card.gold-list-missing-wt {
+    border-color: #f59e0b;
+    background: #fff4e5;
+  }
+
+  .gold-list-card .gold-list-wt-pending {
+    color: #9a3412;
+    font-weight: 800;
+  }
+
   .gold-list-card-name {
     font-size: 18px;
     font-weight: 800;
@@ -341,12 +398,12 @@
   }
 
   .gold-list-card .gold-list-acts {
-    margin-top: 10px;
+    margin: 0 0 10px;
   }
 
-  .gold-list-card .gold-list-act {
-    flex: 1;
-    height: 42px;
-    font-size: 14px;
+  .gold-list-card .gold-list-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
   }
 }
