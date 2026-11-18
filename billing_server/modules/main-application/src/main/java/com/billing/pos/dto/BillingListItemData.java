@@ -14,6 +14,13 @@ public class BillingListItemData {
     private String itemSize;
     private Double purity;
     private Double metalWt;
+    private Double wastagePer;
+    private Double stoneWt;
+    private Double stoneWastage;
+    private Double stoneCost;
+    private Double gramRate;
+    private String chargeType;
+    private Double chargeAmt;
     private Double cost;
     private Double paid;
     private Double payable;

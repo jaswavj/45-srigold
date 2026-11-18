@@ -126,7 +126,14 @@
 }
 
 .gold-list-table-wrap {
-  overflow: hidden;
+  overflow-x: auto;
+}
+
+.gold-list-sub {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9a3412;
 }
 
 .gold-list-table {
@@ -349,7 +356,7 @@
 }
 
 .gold-list-table tr.gold-list-missing-wt td:nth-child(6),
-.gold-list-table tr.gold-list-missing-wt td:nth-child(7),
+.gold-list-table tr.gold-list-missing-wt td:nth-child(9),
 .gold-list-wt-pending {
   color: #9a3412;
   background: #ffedd5;
@@ -547,7 +554,7 @@ html[data-theme="dark"] .gold-list-photo-missing,
 html[data-theme="dark"] .gold-list-missing,
 html[data-theme="dark"] .gold-list-missing-wt,
 html[data-theme="dark"] .gold-list-table tr.gold-list-missing-wt td:nth-child(6),
-html[data-theme="dark"] .gold-list-table tr.gold-list-missing-wt td:nth-child(7),
+html[data-theme="dark"] .gold-list-table tr.gold-list-missing-wt td:nth-child(9),
 html[data-theme="dark"] .gold-list-wt-pending {
   background: #3a2a18;
   color: #fdba74;

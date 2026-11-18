@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { adminApi, adminError } from '../../api/admin/admin-api-service';
 import { BillingApiService } from '../../api/billing/billing-api-service';
 import { routerPathNames } from '../../routes/routerPathNames';
+import { goldAmount, goldTotalWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import FinishedShareCard from './FinishedShareCard';
 import './master/Master.css';
@@ -20,6 +21,13 @@ type ListRow = {
   itemSize: string;
   purity: number;
   metalWt: number;
+  wastagePer: number;
+  stoneWt: number;
+  stoneWastage: number;
+  stoneCost: number;
+  gramRate: number;
+  chargeType: string;
+  chargeAmt: number;
   cost: number;
   paid: number;
   payable: number;
@@ -38,6 +46,21 @@ const wt = (n?: number | null, digits = 3) => {
   return v.toFixed(digits);
 };
 
+const rupee = (n?: number | null) => `₹${(Number(n) || 0).toFixed(2)}`;
+const opt = (n?: number | null, digits = 3) => {
+  const v = Number(n);
+  if (!Number.isFinite(v) || v <= 0) return '-';
+  return v.toFixed(digits);
+};
+const rowGold = (row: ListRow) => ({
+  finishing: row.cost,
+  wastage: row.metalWt,
+  stoneWt: row.stoneWt,
+  stoneWastage: row.stoneWastage,
+  stoneCost: row.stoneCost,
+  gramRate: row.gramRate,
+  chargeAmt: row.chargeAmt,
+});
 const bothPhotosMissing = (row: ListRow) => !(row.image1 || '').trim() && !(row.image2 || '').trim();
 const missingWeights = (row: ListRow) => !(Number(row.cost) > 0) && !(Number(row.metalWt) > 0);
 const listRowClass = (row: ListRow) => {
@@ -284,14 +307,19 @@ const BillingListPage: React.FC = () => {
                 <th>Size</th>
                 <th>Finishing wt</th>
                 <th>Purity</th>
+                <th>%</th>
                 <th>Wastage wt</th>
+                <th>Stone wt</th>
+                <th>Stone wastage</th>
+                <th>Total wt</th>
+                <th>Amount</th>
                 <th>Photos</th>
               </tr>
             </thead>
             <tbody>
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="gold-list-empty">
+                  <td colSpan={14} className="gold-list-empty">
                     {rows.length === 0
                       ? (filter === 'unfinished'
                         ? 'No items without finishing wt'
@@ -316,7 +344,26 @@ const BillingListPage: React.FC = () => {
                   <td>{row.itemSize || '-'}</td>
                   <td className={!(Number(row.cost) > 0) ? 'gold-list-wt-pending' : ''}>{wt(row.cost)}</td>
                   <td>{Number(row.purity) > 0 ? Number(row.purity) : '-'}</td>
+                  <td>{opt(row.wastagePer, 2)}</td>
                   <td className={!(Number(row.metalWt) > 0) ? 'gold-list-wt-pending' : ''}>{wt(row.metalWt, 2)}</td>
+                  <td>{opt(row.stoneWt)}</td>
+                  <td>{opt(row.stoneWastage)}</td>
+                  <td>{goldTotalWt(rowGold(row)).toFixed(3)}</td>
+                  <td>
+                    {goldAmount(rowGold(row)) > 0 ? (
+                      <div>
+                        <div>{rupee(goldAmount(rowGold(row)))}</div>
+                        <div className="gold-list-sub">
+                          {[
+                            Number(row.stoneCost) > 0 ? `Stone ${rupee(row.stoneCost)}` : '',
+                            Number(row.gramRate) > 0 ? `${opt(row.gramRate, 2)}/g` : '',
+                            (row.chargeType || '').trim() || (Number(row.chargeAmt) > 0 ? 'Type' : ''),
+                            Number(row.chargeAmt) > 0 ? rupee(row.chargeAmt) : '',
+                          ].filter(Boolean).join(' · ')}
+                        </div>
+                      </div>
+                    ) : '-'}
+                  </td>
                   <td>
                     <div className="gold-list-card-photos">
                       <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />
@@ -351,7 +398,12 @@ const BillingListPage: React.FC = () => {
               <div className="gold-list-card-item">{row.itemName || '-'}{row.itemSize ? ` · ${row.itemSize}` : ''}</div>
               <div className={`gold-list-card-wt${!(Number(row.cost) > 0) ? ' gold-list-wt-pending' : ''}`}>Finishing wt: {wt(row.cost)}</div>
               <div className="gold-list-card-wt">Purity: {Number(row.purity) > 0 ? Number(row.purity) : '-'}</div>
+              <div className="gold-list-card-wt">Percentage: {opt(row.wastagePer, 2)}</div>
               <div className={`gold-list-card-wt${!(Number(row.metalWt) > 0) ? ' gold-list-wt-pending' : ''}`}>Wastage wt: {wt(row.metalWt, 2)}</div>
+              <div className="gold-list-card-wt">Stone wt: {opt(row.stoneWt)}</div>
+              <div className="gold-list-card-wt">Stone wastage: {opt(row.stoneWastage)}</div>
+              <div className="gold-list-card-wt">Total wt: {goldTotalWt(rowGold(row)).toFixed(3)}</div>
+              <div className="gold-list-card-wt">Amount: {goldAmount(rowGold(row)) > 0 ? rupee(goldAmount(rowGold(row))) : '-'}</div>
               <div className="gold-list-card-photos">
                 <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />
                 <Photo fileName={row.image2} onOpen={() => openPhoto(row, 2)} />

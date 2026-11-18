@@ -1,0 +1,37 @@
+/** Wastage = finishing wt × percentage / 99.5 */
+export const FINE_DIVISOR = 99.5;
+
+export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+export const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000;
+
+export const calcWastageWt = (finishing: number, percent: number) => {
+  if (!(finishing > 0) || !(percent > 0)) return 0;
+  return Math.max(0, round2((finishing * percent) / FINE_DIVISOR));
+};
+
+/** finishing + wastage − stone wt + stone wastage wt */
+export const calcTotalWt = (finishing: number, wastage: number, stoneWt: number, stoneWastage: number) =>
+  round3((Number(finishing) || 0) + (Number(wastage) || 0) - (Number(stoneWt) || 0) + (Number(stoneWastage) || 0));
+
+export type GoldParts = {
+  finishing?: number | null;
+  wastage?: number | null;
+  stoneWt?: number | null;
+  stoneWastage?: number | null;
+  stoneCost?: number | null;
+  gramRate?: number | null;
+  chargeAmt?: number | null;
+};
+
+export const goldTotalWt = (p: GoldParts) =>
+  calcTotalWt(p.finishing || 0, p.wastage || 0, p.stoneWt || 0, p.stoneWastage || 0);
+
+export const goldRateAmt = (p: GoldParts) => {
+  const rate = Number(p.gramRate) || 0;
+  if (!(rate > 0)) return 0;
+  return round2(goldTotalWt(p) * rate);
+};
+
+/** stone cost + total wt × 1 gram rate + type cost */
+export const goldAmount = (p: GoldParts) =>
+  round2((Number(p.stoneCost) || 0) + goldRateAmt(p) + (Number(p.chargeAmt) || 0));

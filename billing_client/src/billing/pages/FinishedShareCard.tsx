@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../api/billing/billing-api-service';
 import logo from '../../assets/images/logo.png';
+import { goldAmount, goldRateAmt, goldTotalWt, GoldParts } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import { downloadElementJpeg } from '../utils/downloadJpeg';
 import './FinishedShareCard.css';
@@ -10,8 +11,15 @@ type ShareItem = {
   name: string;
   itemSize?: string;
   purity?: number;
+  wastagePer?: number;
   price?: number;
   metalWt?: number;
+  stoneWt?: number;
+  stoneWastage?: number;
+  stoneCost?: number;
+  gramRate?: number;
+  chargeType?: string;
+  chargeAmt?: number;
   image1?: string;
   image2?: string;
 };
@@ -53,6 +61,28 @@ const fmtTime = (t?: string) => {
   return `${h}:${parts[1]} ${ampm}`;
 };
 
+const rupees = (n?: number | null) => `₹${(Number(n) || 0).toFixed(2)}`;
+const has = (n?: number | null) => Number(n) > 0;
+
+const Kv: React.FC<{ label: string; value?: React.ReactNode; wide?: boolean }> = ({ label, value, wide }) => {
+  if (value == null || value === '') return null;
+  return (
+    <div className={wide ? 'kv wide' : 'kv'}>
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
+  );
+};
+const partsOf = (item: ShareItem): GoldParts => ({
+  finishing: item.price,
+  wastage: item.metalWt,
+  stoneWt: item.stoneWt,
+  stoneWastage: item.stoneWastage,
+  stoneCost: item.stoneCost,
+  gramRate: item.gramRate,
+  chargeAmt: item.chargeAmt,
+});
+
 const waPhone = (raw?: string) => {
   const digits = (raw || '').replace(/\D/g, '');
   if (digits.length < 10) return '';
@@ -92,13 +122,26 @@ export const FinishedShareCard: React.FC<{
   const totals = useMemo(() => {
     const items = bill?.items || [];
     const finishing = items.reduce((s, item) => s + (Number(item.price) || 0), 0);
-    const wastage = items.reduce((s, item) => s + (Number(item.metalWt) || 0), 0);
+    const wastageSum = items.reduce((s, item) => s + (Number(item.metalWt) || 0), 0);
+    const stone = items.reduce((s, item) => s + (Number(item.stoneWt) || 0), 0);
+    const stoneWastage = items.reduce((s, item) => s + (Number(item.stoneWastage) || 0), 0);
+    const stoneCost = items.reduce((s, item) => s + (Number(item.stoneCost) || 0), 0);
+    const rateAmt = items.reduce((s, item) => s + goldRateAmt(partsOf(item)), 0);
+    const typeCost = items.reduce((s, item) => s + (Number(item.chargeAmt) || 0), 0);
+    const amount = items.reduce((s, item) => s + goldAmount(partsOf(item)), 0);
+    const total = items.reduce((s, item) => s + goldTotalWt(partsOf(item)), 0);
     const paid = Number(bill?.paid) || 0;
-    const payable = Number(bill?.payable) || finishing + wastage;
+    const payable = Number(bill?.payable) || total;
     return {
       finishing,
-      wastage,
-      total: finishing + wastage,
+      wastage: wastageSum,
+      stone,
+      stoneWastage,
+      total,
+      stoneCost,
+      rateAmt,
+      typeCost,
+      amount,
       paid,
       due: Math.max(0, payable - paid),
       advance: Math.max(0, paid - payable),
@@ -131,29 +174,7 @@ export const FinishedShareCard: React.FC<{
     }
     const ok = await downloadJpeg(true);
     if (ok) toast.success('JPEG downloaded. Attach it in WhatsApp.');
-    const items = (bill?.items || []).map((item, i) => {
-      const size = (item.itemSize || '').trim();
-      const pur = Number(item.purity) > 0 ? `  Purity ${item.purity}` : '';
-      return `${i + 1}. ${item.name || 'Item'}${size ? ` (${size})` : ''}  Finish ${wt(item.price)}${pur}  Wastage ${wt(item.metalWt, 2)}`;
-    });
-    const text = [
-      `*${shop}*`,
-      `Dear ${bill?.customerName || 'Customer'},`,
-      'Your job work details:',
-      `*Bill #${bill?.billDisplay || billNo}*`,
-      `${fmtDate(bill?.date)}${bill?.time ? `  ${fmtTime(bill?.time)}` : ''}`,
-      items.length ? `*Items*\n${items.join('\n')}` : '',
-      [
-        `Finishing wt: ${wt(totals.finishing)} g`,
-        `Wastage wt: ${wt(totals.wastage, 2)} g`,
-        `*Total wt: ${wt(totals.total)} g*`,
-        `Collected: ${wt(totals.paid)} g`,
-        totals.due > 0.0005 ? `*Balance: ${wt(totals.due)} g*` : '',
-        totals.advance > 0.0005 ? `Advance: ${wt(totals.advance)} g` : '',
-      ].filter(Boolean).join('\n'),
-      ok ? 'Please find the JPEG attached. Thank you.' : 'Thank you.',
-    ].filter(Boolean).join('\n\n');
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(`https://wa.me/${phone}`, '_blank');
   };
 
   return (
@@ -164,76 +185,85 @@ export const FinishedShareCard: React.FC<{
         ) : (
           <>
             <div className="gold-share-card" ref={cardRef}>
-              <div className="gold-share-top">
-                <img className="gold-share-mark" src={logo} alt="" />
-                <div>
-                  <div className="gold-share-shop">{shop}</div>
-                  {(bill.companyAddress || '').split(/\r?\n/).filter(Boolean).slice(0, 2).map((line) => (
-                    <div key={line} className="gold-share-addr">{line}</div>
-                  ))}
+              <header className="gold-share-head">
+                <div className="gold-share-brand">
+                  <img className="gold-share-mark" src={logo} alt="" />
+                  <div>
+                    <div className="gold-share-shop">{shop}</div>
+                    {(bill.companyAddress || '').split(/\r?\n/).filter(Boolean).slice(0, 2).map((line) => (
+                      <div key={line} className="gold-share-addr">{line}</div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-              <div className="gold-share-title">Job Work Statement</div>
-              <div className="gold-share-meta">
-                <div>
-                  <span>Bill No</span>
-                  <b>{bill.billDisplay || billNo}</b>
+                <div className="gold-share-title">Job Work Statement</div>
+                <div className="gold-share-meta">
+                  <div><span>Bill No</span><b>{bill.billDisplay || billNo}</b></div>
+                  <div><span>Date</span><b>{fmtDate(bill.date)}{bill.time ? ` · ${fmtTime(bill.time)}` : ''}</b></div>
                 </div>
-                <div>
-                  <span>Date</span>
-                  <b>{fmtDate(bill.date)}{bill.time ? ` · ${fmtTime(bill.time)}` : ''}</b>
+              </header>
+
+              {(bill.customerName || bill.customerPhone) ? (
+                <div className="gold-share-cust">
+                  {bill.customerName ? <div><span>Customer</span><b>{bill.customerName}</b></div> : null}
+                  {bill.customerPhone ? <div><span>Phone</span><b>{bill.customerPhone}</b></div> : null}
                 </div>
-              </div>
-              <div className="gold-share-cust">
-                <div>
-                  <span>Customer</span>
-                  <b>{bill.customerName || '-'}</b>
-                </div>
-                <div>
-                  <span>Phone</span>
-                  <b>{bill.customerPhone || '-'}</b>
-                </div>
-              </div>
-              <div className="gold-share-items">
-                <div className="gold-share-items-head">
-                  <span className="n">#</span>
-                  <span className="item">Item</span>
-                  <span>Size</span>
-                  <span>Finishing wt</span>
-                  <span>Purity</span>
-                  <span>Wastage wt</span>
-                </div>
-                {(bill.items || []).map((item, i) => (
-                  <div key={`${item.name}-${i}`} className="gold-share-item-row">
-                    <div className="n">{i + 1}</div>
-                    <div className="item">
-                      <div className="gold-share-item-name">{item.name || '-'}</div>
-                      {(item.image1 || item.image2) ? (
-                        <div className="gold-share-photos">
-                          {item.image1 ? <img src={sriImageUrl(item.image1)} alt="" /> : null}
-                          {item.image2 ? <img src={sriImageUrl(item.image2)} alt="" /> : null}
+              ) : null}
+
+              {(bill.items || []).map((item, i) => {
+                const lineAmt = goldAmount(partsOf(item));
+                const lineWt = goldTotalWt(partsOf(item));
+                const charge = (item.chargeType || '').trim();
+                return (
+                <div key={`${item.name}-${i}`} className="gold-share-body">
+                  {(item.image1 || item.image2) ? (
+                    <div className="gold-share-photos">
+                      {item.image1 ? (
+                        <div className="gold-share-photo">
+                          <img src={sriImageUrl(item.image1)} alt="" />
+                          <em>Image 1</em>
+                        </div>
+                      ) : null}
+                      {item.image2 ? (
+                        <div className="gold-share-photo">
+                          <img src={sriImageUrl(item.image2)} alt="" />
+                          <em>Image 2</em>
                         </div>
                       ) : null}
                     </div>
-                    <div className="kv"><span>Size</span><b>{item.itemSize || '—'}</b></div>
-                    <div className="kv"><span>Finishing wt</span><b>{wt(item.price)}</b></div>
-                    <div className="kv"><span>Purity</span><b>{Number(item.purity) > 0 ? item.purity : '—'}</b></div>
-                    <div className="kv"><span>Wastage wt</span><b>{wt(item.metalWt, 2)}</b></div>
+                  ) : null}
+                  {item.name ? <div className="gold-share-item-name">{item.name}</div> : null}
+                  <div className="gold-share-kvs">
+                    <Kv label="Size" value={(item.itemSize || '').trim()} />
+                    <Kv label="Finishing wt" value={has(item.price) ? wt(item.price) : null} />
+                    <Kv label="Purity" value={has(item.purity) ? item.purity : null} />
+                    <Kv label="Percentage" value={has(item.wastagePer) ? item.wastagePer : null} />
+                    <Kv label="Wastage wt" value={has(item.metalWt) ? wt(item.metalWt, 2) : null} />
+                    <Kv label="Stone wt" value={has(item.stoneWt) ? wt(item.stoneWt) : null} />
+                    <Kv label="Stone wastage" value={has(item.stoneWastage) ? wt(item.stoneWastage) : null} />
+                    <Kv label="Total wt" value={lineWt > 0 ? lineWt.toFixed(3) : null} />
+                    <Kv label="Stone cost" value={has(item.stoneCost) ? rupees(item.stoneCost) : null} />
+                    <Kv label="1 gram rate" value={has(item.gramRate) ? rupees(item.gramRate) : null} />
+                    <Kv label="Gold amount" value={has(item.gramRate) ? rupees(goldRateAmt(partsOf(item))) : null} />
+                    <Kv label={charge || 'Type'} value={has(item.chargeAmt) ? rupees(item.chargeAmt) : null} />
+                    <Kv label="Amount" value={lineAmt > 0 ? rupees(lineAmt) : null} wide />
                   </div>
-                ))}
-              </div>
+                </div>
+                );
+              })}
+
               <div className="gold-share-totals">
-                <div><span>Finishing wt</span><b>{wt(totals.finishing)} g</b></div>
-                <div><span>Wastage wt</span><b>{wt(totals.wastage, 2)} g</b></div>
-                <div className="gold-share-total"><span>Total wt</span><b>{wt(totals.total)} g</b></div>
-                <div><span>Collected wt</span><b>{wt(totals.paid)} g</b></div>
+                {has(totals.finishing) ? <div><span>Finishing wt</span><b>{wt(totals.finishing)} g</b></div> : null}
+                {has(totals.wastage) ? <div><span>Wastage wt</span><b>{wt(totals.wastage, 2)} g</b></div> : null}
+                {has(totals.stone) ? <div><span>Stone wt</span><b>{wt(totals.stone)} g</b></div> : null}
+                {has(totals.stoneWastage) ? <div><span>Stone wastage</span><b>{wt(totals.stoneWastage)} g</b></div> : null}
+                {totals.total > 0 ? <div className="gold-share-total"><span>Total wt</span><b>{totals.total.toFixed(3)} g</b></div> : null}
+                {totals.amount > 0 ? <div className="gold-share-total gold-share-money"><span>Total amount</span><b>{rupees(totals.amount)}</b></div> : null}
+                {has(totals.paid) ? <div><span>Collected wt</span><b>{wt(totals.paid)} g</b></div> : null}
                 {totals.advance > 0.0005 ? (
                   <div className="ok"><span>Advance</span><b>{wt(totals.advance)} g</b></div>
-                ) : (
-                  <div className={totals.due > 0.0005 ? 'due' : 'ok'}>
-                    <span>Balance</span><b>{wt(totals.due)} g</b>
-                  </div>
-                )}
+                ) : totals.due > 0.0005 ? (
+                  <div className="due"><span>Balance</span><b>{wt(totals.due)} g</b></div>
+                ) : null}
               </div>
               <div className="gold-share-thanks">Thank you for choosing {shop}</div>
             </div>

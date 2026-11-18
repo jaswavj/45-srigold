@@ -7,14 +7,14 @@
   align-items: flex-start;
   justify-content: center;
   overflow: auto;
-  padding: 18px 12px 28px;
+  padding: 12px 10px 20px;
 }
 
 .gold-share-panel {
   width: min(390px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .gold-share-loading {
@@ -31,173 +31,205 @@
   max-width: 100%;
   box-sizing: border-box;
   background: #fffaf2;
-  color: #3b2a12;
+  color: #1a1208;
   border: 1px solid #e4c890;
   border-radius: 16px;
-  padding: 16px 14px 14px;
+  padding: 14px 12px 12px;
   box-shadow: 0 18px 40px rgba(60, 40, 10, 0.18);
   font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
 }
 
-.gold-share-top {
+.gold-share-head {
+  padding-bottom: 0;
+}
+
+.gold-share-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #ead7a8;
+  gap: 10px;
 }
 
 .gold-share-mark {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
   flex: 0 0 auto;
   display: block;
 }
 
-.gold-share-top > div {
-  min-width: 0;
-}
-
 .gold-share-shop {
   font-size: 17px;
   font-weight: 900;
-  letter-spacing: 0.3px;
-  color: #7a5410;
+  color: #5c3d08;
+  line-height: 1.15;
   overflow-wrap: anywhere;
-  line-height: 1.2;
 }
 
 .gold-share-addr {
   font-size: 12px;
-  font-weight: 600;
-  color: #8a6a3a;
+  font-weight: 700;
+  color: #6b4a1e;
+  line-height: 1.25;
 }
 
 .gold-share-title {
-  margin: 14px 0 10px;
+  margin: 10px 0 8px;
+  padding: 10px 0;
+  border-top: 1px solid #ead7a8;
+  border-bottom: 1px solid #ead7a8;
   text-align: center;
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 1.4px;
+  letter-spacing: 1.3px;
   text-transform: uppercase;
-  color: #a07828;
+  color: #7a5410;
 }
 
 .gold-share-meta,
 .gold-share-cust {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px 10px;
+}
+
+.gold-share-cust {
+  margin: 10px 0 0;
 }
 
 .gold-share-meta span,
 .gold-share-cust span {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.8px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #a07828;
+  color: #7a5410;
 }
 
 .gold-share-meta b,
 .gold-share-cust b {
-  font-size: 13px;
+  display: block;
+  font-size: 15px;
   font-weight: 800;
-  color: #3b2a12;
+  color: #1a1208;
   overflow-wrap: anywhere;
 }
 
-.gold-share-items {
-  width: 100%;
-  font-size: 13px;
-}
-
-.gold-share-items-head,
-.gold-share-item-row .n {
-  display: none;
-}
-
-.gold-share-item-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 10px;
-  padding: 10px 0 12px;
-  border-bottom: 1px solid #ead7a8;
-  font-weight: 700;
-}
-
-.gold-share-item-row .item {
-  grid-column: 1 / -1;
-}
-
-.gold-share-item-row .kv {
-  background: #fff7e8;
-  border: 1px solid #ead7a8;
-  border-radius: 8px;
-  padding: 7px 8px;
-  min-width: 0;
-}
-
-.gold-share-item-row .kv span {
-  display: block;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  color: #a07828;
-  margin-bottom: 2px;
-}
-
-.gold-share-item-row .kv b {
-  display: block;
-  font-size: 14px;
-  overflow-wrap: anywhere;
-}
-
-.gold-share-item-name {
-  font-weight: 800;
-  margin-bottom: 6px;
+.gold-share-body {
+  padding: 10px 0 8px;
 }
 
 .gold-share-photos {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, 92px);
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.gold-share-photos img {
-  width: 64px;
-  height: 64px;
-  object-fit: cover;
+.gold-share-photo {
+  position: relative;
+  width: 92px;
+  height: 92px;
   border-radius: 8px;
+  overflow: hidden;
   border: 1px solid #ead7a8;
   background: #fff;
+}
+
+.gold-share-photo.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff3dc;
+  color: #a07828;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.gold-share-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.gold-share-photo em {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(26, 18, 8, 0.78);
+  color: #fff;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.gold-share-item-name {
+  font-size: 18px;
+  font-weight: 900;
+  color: #1a1208;
+  margin: 0 0 8px;
+}
+
+.gold-share-kvs,
+.gold-share-totals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.gold-share-kvs .kv,
+.gold-share-totals > div {
+  background: #fff7e8;
+  border: 1px solid #ead7a8;
+  border-radius: 8px;
+  padding: 7px 8px 8px;
+  min-width: 0;
 }
 
 .gold-share-totals {
-  margin-top: 12px;
-  background: #fff;
-  border: 1px solid #ead7a8;
-  border-radius: 10px;
-  padding: 8px 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ead7a8;
 }
 
 .gold-share-totals > div {
-  display: flex;
-  justify-content: space-between;
-  padding: 5px 0;
-  font-size: 13px;
-  font-weight: 700;
+  background: #fff;
 }
 
-.gold-share-totals .gold-share-total,
-.gold-share-totals .due,
-.gold-share-totals .ok {
-  border-top: 1px solid #ead7a8;
-  margin-top: 4px;
-  padding-top: 8px;
+.gold-share-kvs .kv.wide {
+  grid-column: 1 / -1;
+}
+
+.gold-share-kvs .kv span,
+.gold-share-totals > div span {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #7a5410;
+  margin-bottom: 2px;
+}
+
+.gold-share-kvs .kv b,
+.gold-share-totals > div b {
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+  color: #1a1208;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.gold-share-totals .gold-share-total {
+  background: #fff3dc;
+}
+
+.gold-share-totals .gold-share-total b {
   font-size: 15px;
 }
 
@@ -210,22 +242,17 @@
 }
 
 .gold-share-thanks {
-  margin-top: 14px;
+  margin-top: 10px;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
-  color: #8a6a3a;
+  color: #5c3d08;
 }
 
 .gold-share-acts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: stretch;
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 8px;
-}
-
-.gold-share-acts .mst-btn {
-  flex: 1 1 100%;
 }
 
 .gold-share-wa {

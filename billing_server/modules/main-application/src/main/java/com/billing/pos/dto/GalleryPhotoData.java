@@ -11,5 +11,14 @@ public class GalleryPhotoData {
     private String itemName;
     private Double metalWt;
     private Double finishingWt;
-    private String fileName;
+    private Double purity;
+    private Double wastagePer;
+    private Double stoneWt;
+    private Double stoneWastage;
+    private Double stoneCost;
+    private Double gramRate;
+    private String chargeType;
+    private Double chargeAmt;
+    private String image1;
+    private String image2;
 }

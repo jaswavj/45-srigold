@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { BillingApiService } from '../../api/billing/billing-api-service';
+import { goldAmount, goldTotalWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import './master/Master.css';
 import './GalleryPage.css';
@@ -13,6 +14,21 @@ type Photo = {
   itemName: string;
   metalWt?: number;
   finishingWt?: number;
+  purity?: number;
+  wastagePer?: number;
+  stoneWt?: number;
+  stoneWastage?: number;
+  stoneCost?: number;
+  gramRate?: number;
+  chargeType?: string;
+  chargeAmt?: number;
+  image1: string;
+  image2: string;
+};
+
+type ViewShot = {
+  photo: Photo;
+  slot: 1 | 2;
   fileName: string;
 };
 
@@ -30,6 +46,13 @@ const GalleryPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [viewIndex, setViewIndex] = useState<number | null>(null);
+  const [tab, setTab] = useState<1 | 2>(1);
+
+  const asPhoto = (row: any): Photo => ({
+    ...row,
+    image1: String(row?.image1 || row?.fileName || '').trim(),
+    image2: String(row?.image2 || '').trim(),
+  });
 
   useEffect(() => {
     let live = true;
@@ -37,7 +60,7 @@ const GalleryPage: React.FC = () => {
     api.gallery()
       .then((res: any) => {
         if (!live) return;
-        setPhotos(Array.isArray(res?.data) ? res.data : []);
+        setPhotos(Array.isArray(res?.data) ? res.data.map(asPhoto) : []);
       })
       .catch((err: any) => {
         if (!live) return;
@@ -65,28 +88,57 @@ const GalleryPage: React.FC = () => {
     return Array.from(names).sort((a, b) => a.localeCompare(b));
   }, [photos]);
 
+  const tabCounts = useMemo(() => ({
+    1: visible.filter((p) => p.image1).length,
+    2: visible.filter((p) => p.image2).length,
+  }), [visible]);
+
+  const shots = useMemo<ViewShot[]>(() => visible.flatMap((photo) => {
+    const fileName = tab === 1 ? photo.image1 : photo.image2;
+    return fileName ? [{ photo, slot: tab, fileName }] : [];
+  }), [visible, tab]);
+
   useEffect(() => {
     if (viewIndex == null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setViewIndex(null);
-      if (e.key === 'ArrowRight' && visible.length > 1) {
-        setViewIndex((cur) => (cur == null ? cur : (cur + 1) % visible.length));
+      if (e.key === 'ArrowRight' && shots.length > 1) {
+        setViewIndex((cur) => (cur == null ? cur : (cur + 1) % shots.length));
       }
-      if (e.key === 'ArrowLeft' && visible.length > 1) {
-        setViewIndex((cur) => (cur == null ? cur : (cur - 1 + visible.length) % visible.length));
+      if (e.key === 'ArrowLeft' && shots.length > 1) {
+        setViewIndex((cur) => (cur == null ? cur : (cur - 1 + shots.length) % shots.length));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [viewIndex, visible.length]);
+  }, [viewIndex, shots.length]);
 
-  const viewPhoto = viewIndex == null ? null : visible[viewIndex];
+  const viewShot = viewIndex == null ? null : shots[viewIndex];
+  const photoCount = shots.length;
   const wtText = (photo: Photo) => {
     const finishing = wt(photo.finishingWt);
     const wastage = wt(photo.metalWt, 2);
-    return [finishing ? `Finishing wt: ${finishing}` : '', wastage ? `Wastage wt: ${wastage}` : '']
-      .filter(Boolean)
-      .join(' · ');
+    const parts = {
+      finishing: photo.finishingWt,
+      wastage: photo.metalWt,
+      stoneWt: photo.stoneWt,
+      stoneWastage: photo.stoneWastage,
+      stoneCost: photo.stoneCost,
+      gramRate: photo.gramRate,
+      chargeAmt: photo.chargeAmt,
+    };
+    const total = goldTotalWt(parts);
+    const amount = goldAmount(parts);
+    return [
+      finishing ? `Finishing wt: ${finishing}` : '',
+      Number(photo.purity) > 0 ? `Purity ${photo.purity}` : '',
+      Number(photo.wastagePer) > 0 ? `${photo.wastagePer}%` : '',
+      wastage ? `Wastage wt: ${wastage}` : '',
+      wt(photo.stoneWt) ? `Stone ${wt(photo.stoneWt)}` : '',
+      wt(photo.stoneWastage) ? `Stone wastage ${wt(photo.stoneWastage)}` : '',
+      total > 0 ? `Total ${total.toFixed(3)}` : '',
+      amount > 0 ? `₹${amount.toFixed(2)}` : '',
+    ].filter(Boolean).join(' · ');
   };
 
   return (
@@ -96,6 +148,24 @@ const GalleryPage: React.FC = () => {
       </h2>
       <div className="mst-card" style={{ marginBottom: 12 }}>
         <div className="mst-card-b gal-filters">
+          <div className="gal-tabs" role="tablist" aria-label="Gallery photos">
+            {([1, 2] as const).map((slot) => (
+              <button
+                key={slot}
+                type="button"
+                role="tab"
+                aria-selected={tab === slot}
+                className={`gal-tab${tab === slot ? ' on' : ''}`}
+                onClick={() => {
+                  setTab(slot);
+                  setViewIndex(null);
+                }}
+              >
+                Image {slot}
+                <span>{loading ? '…' : tabCounts[slot]}</span>
+              </button>
+            ))}
+          </div>
           <div className="mst-fg gal-search">
             <label>Item name</label>
             <select
@@ -119,66 +189,71 @@ const GalleryPage: React.FC = () => {
             />
           </div>
           <div className="gal-count">
-            {loading ? 'Loading…' : `${visible.length} photo${visible.length === 1 ? '' : 's'}`}
+            {loading ? 'Loading…' : `${photoCount} photo${photoCount === 1 ? '' : 's'}`}
           </div>
         </div>
       </div>
 
-      {!loading && visible.length === 0 && (
+      {!loading && shots.length === 0 && (
         <div className="mst-card">
           <div className="gal-empty">
-            {photos.length === 0 ? 'No photos uploaded yet' : 'No photos for this item name'}
+            {photos.length === 0
+              ? 'No photos uploaded yet'
+              : `No Image ${tab} photos${item || search ? ' for this item name' : ''}`}
           </div>
         </div>
       )}
 
       <div className="gal-grid">
-        {visible.map((photo, i) => (
+        {shots.map((shot, i) => (
           <button
-            key={`${photo.billId}-${photo.fileName}-${i}`}
+            key={`${shot.photo.billId}-${shot.slot}-${shot.fileName}-${i}`}
             type="button"
             className="gal-card"
             onClick={() => setViewIndex(i)}
-            title="View photo"
+            title={`View image ${shot.slot}`}
           >
-            <img src={sriImageUrl(photo.fileName)} alt={photo.itemName} />
+            <div className="gal-shot">
+              <img src={sriImageUrl(shot.fileName)} alt={`${shot.photo.itemName || 'Item'} image ${shot.slot}`} />
+              <em>Image {shot.slot}</em>
+            </div>
             <div className="gal-cap">
-              <strong>{photo.itemName || '-'}</strong>
-              {wtText(photo) ? <span className="gal-wt">{wtText(photo)}</span> : null}
-              <span>{photo.customerName || '-'}</span>
-              <em>{[photo.date, photo.billDisplay ? `#${photo.billDisplay}` : ''].filter(Boolean).join(' · ')}</em>
+              <strong>{shot.photo.itemName || '-'}</strong>
+              {wtText(shot.photo) ? <span className="gal-wt">{wtText(shot.photo)}</span> : null}
+              <span>{shot.photo.customerName || '-'}</span>
+              <em>{[shot.photo.date, shot.photo.billDisplay ? `#${shot.photo.billDisplay}` : ''].filter(Boolean).join(' · ')}</em>
             </div>
           </button>
         ))}
       </div>
 
-      {viewPhoto && viewIndex != null && (
+      {viewShot && viewIndex != null && (
         <div className="gal-view-back" onClick={() => setViewIndex(null)}>
           <button className="gal-view-close" type="button" onClick={() => setViewIndex(null)}>Close</button>
-          {visible.length > 1 && (
+          {shots.length > 1 && (
             <>
               <button
                 className="gal-view-nav gal-view-prev"
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setViewIndex((viewIndex - 1 + visible.length) % visible.length); }}
+                onClick={(e) => { e.stopPropagation(); setViewIndex((viewIndex - 1 + shots.length) % shots.length); }}
               >
                 ‹
               </button>
               <button
                 className="gal-view-nav gal-view-next"
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setViewIndex((viewIndex + 1) % visible.length); }}
+                onClick={(e) => { e.stopPropagation(); setViewIndex((viewIndex + 1) % shots.length); }}
               >
                 ›
               </button>
             </>
           )}
           <div className="gal-view-main" onClick={(e) => e.stopPropagation()}>
-            <img className="gal-view-img" src={sriImageUrl(viewPhoto.fileName)} alt={viewPhoto.itemName} />
+            <img className="gal-view-img" src={sriImageUrl(viewShot.fileName)} alt={`${viewShot.photo.itemName} image ${viewShot.slot}`} />
             <div className="gal-view-cap">
-              <strong>{viewPhoto.itemName || '-'}</strong>
-              {wtText(viewPhoto) ? <span>{wtText(viewPhoto)}</span> : null}
-              <span>{[viewPhoto.customerName, viewPhoto.date, viewPhoto.billDisplay ? `#${viewPhoto.billDisplay}` : ''].filter(Boolean).join(' · ')}</span>
+              <strong>{viewShot.photo.itemName || '-'} · Image {viewShot.slot}</strong>
+              {wtText(viewShot.photo) ? <span>{wtText(viewShot.photo)}</span> : null}
+              <span>{[viewShot.photo.customerName, viewShot.photo.date, viewShot.photo.billDisplay ? `#${viewShot.photo.billDisplay}` : ''].filter(Boolean).join(' · ')}</span>
             </div>
           </div>
         </div>

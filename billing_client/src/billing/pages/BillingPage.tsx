@@ -11,6 +11,7 @@ import { routerPathNames } from '../../routes/routerPathNames';
 import { RootState } from '../../state/store';
 import { A4Invoice } from './A4Invoice';
 import { compressImage } from '../utils/compressImage';
+import { calcTotalWt, calcWastageWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import './BillingPage.css';
 
@@ -52,7 +53,37 @@ type Line = {
   metalWt: number;
   itemSize: string;
   purity: number;
+  wastagePer: number;
+  stoneWt: number;
+  stoneWastage: number;
+  stoneCost: number;
+  gramRate: number;
+  chargeType: string;
+  chargeAmt: number;
 };
+
+const blankGold = {
+  wastagePer: 0,
+  stoneWt: 0,
+  stoneWastage: 0,
+  stoneCost: 0,
+  gramRate: 0,
+  chargeType: '',
+  chargeAmt: 0,
+};
+
+const goldFromSaved = (item: any) => ({
+  wastagePer: Number(item?.wastagePer) || 0,
+  stoneWt: Number(item?.stoneWt) || 0,
+  stoneWastage: Number(item?.stoneWastage) || 0,
+  stoneCost: Number(item?.stoneCost) || 0,
+  gramRate: Number(item?.gramRate) || 0,
+  chargeType: item?.chargeType || '',
+  chargeAmt: Number(item?.chargeAmt) || 0,
+});
+
+const plainNum = (n: number) => (Number(n) > 0 ? String(Number(Number(n).toFixed(3))) : '');
+const moneyIn = (n: number) => (Number(n) > 0 ? Number(n).toFixed(2) : '');
 
 type Customer = {
   id: number;
@@ -75,11 +106,11 @@ const parseWt = (v: string) => {
 const missingLineWt = (line: Pick<Line, 'price' | 'metalWt'>) =>
   !(Number(line.price) > 0) && !(Number(line.metalWt) > 0);
 
-const BASE_PURITY = 92;
-const FINE_DIVISOR = 99.5;
-const calcWastage = (finishing: number, purity: number) => {
-  if (!(finishing > 0) || !(purity > 0)) return 0;
-  return Math.max(0, Math.round((finishing * (purity - BASE_PURITY) / FINE_DIVISOR) * 100) / 100);
+const wastageFromPercent = (finishingRaw: string, percentRaw: string) => {
+  const fin = parseWt(finishingRaw);
+  const pct = parseWt(percentRaw);
+  if (!(fin > 0) || !(pct > 0)) return '';
+  return wastage(calcWastageWt(fin, pct));
 };
 
 const CafeItemIcon: React.FC = () => (
@@ -176,12 +207,26 @@ const BillingPage: React.FC = () => {
   const [draftMetalWt, setDraftMetalWt] = useState('');
   const [draftSize, setDraftSize] = useState('');
   const [draftPurity, setDraftPurity] = useState('');
+  const [draftPercent, setDraftPercent] = useState('');
+  const [draftStoneWt, setDraftStoneWt] = useState('');
+  const [draftStoneWastage, setDraftStoneWastage] = useState('');
+  const [draftStoneCost, setDraftStoneCost] = useState('');
+  const [draftGramRate, setDraftGramRate] = useState('');
+  const [draftChargeType, setDraftChargeType] = useState('');
+  const [draftChargeAmt, setDraftChargeAmt] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const sizeRef = useRef<HTMLInputElement>(null);
   const metalWtRef = useRef<HTMLInputElement>(null);
   const finishingRef = useRef<HTMLInputElement>(null);
   const purityRef = useRef<HTMLInputElement>(null);
+  const percentRef = useRef<HTMLInputElement>(null);
+  const stoneWtRef = useRef<HTMLInputElement>(null);
+  const stoneWastageRef = useRef<HTMLInputElement>(null);
+  const stoneCostRef = useRef<HTMLInputElement>(null);
+  const gramRateRef = useRef<HTMLInputElement>(null);
+  const chargeTypeRef = useRef<HTMLInputElement>(null);
+  const chargeAmtRef = useRef<HTMLInputElement>(null);
   const hitRef = useRef<HTMLButtonElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
   const custNameRef = useRef<HTMLInputElement>(null);
@@ -296,6 +341,7 @@ const BillingPage: React.FC = () => {
           metalWt: Number(item.metalWt) || 0,
           itemSize: item.itemSize || '',
           purity: Number(item.purity) || 0,
+          ...goldFromSaved(item),
         })));
         setLineKey(items.length + 1);
         const first = items[0];
@@ -304,7 +350,14 @@ const BillingPage: React.FC = () => {
         setPrice(Number(first?.price) > 0 ? money(first.price) : '');
         setDraftMetalWt(Number(first?.metalWt) > 0 ? wastage(first.metalWt) : '');
         setDraftSize(first?.itemSize || '');
-        setDraftPurity(Number(first?.purity) > 0 ? String(first.purity) : '');
+        setDraftPurity(Number(first?.purity) > 0 ? String(Number(first.purity)) : (Number(first?.price) > 0 ? '92' : ''));
+        setDraftPercent(plainNum(first?.wastagePer));
+        setDraftStoneWt(Number(first?.stoneWt) > 0 ? money(first.stoneWt) : '');
+        setDraftStoneWastage(Number(first?.stoneWastage) > 0 ? money(first.stoneWastage) : '');
+        setDraftStoneCost(Number(first?.stoneWt) > 0 ? (Number(first?.stoneCost) || 0).toFixed(2) : '');
+        setDraftGramRate(moneyIn(first?.gramRate));
+        setDraftChargeType(first?.chargeType || '');
+        setDraftChargeAmt(moneyIn(first?.chargeAmt));
         setDraftImage1(first?.image1 || '');
         setDraftImage2(first?.image2 || '');
         const empty = (v?: string) => (!v || v === '-' ? '' : v);
@@ -336,12 +389,42 @@ const BillingPage: React.FC = () => {
     return () => { live = false; };
   }, [searchParams]);
 
-  const totals = useMemo(() => {
-    const finishingTotal = parseWt(price);
-    const wastageTotal = parseWt(draftMetalWt);
-    const grandTotal = finishingTotal + wastageTotal;
-    return { priceTotal: finishingTotal, finishingTotal, wastageTotal, discountTotal: 0, commissionTotal: 0, grandTotal };
-  }, [price, draftMetalWt]);
+  const gold = useMemo(() => {
+    const finishing = parseWt(price);
+    const wastageWt = parseWt(draftMetalWt);
+    const stoneWt = parseWt(draftStoneWt);
+    const stoneWastage = parseWt(draftStoneWastage);
+    const totalWt = calcTotalWt(finishing, wastageWt, stoneWt, stoneWastage);
+    const stoneOn = stoneWt > 0;
+    const stoneCost = stoneOn ? parseWt(draftStoneCost) : 0;
+    const gramRate = parseWt(draftGramRate);
+    const typeCost = parseWt(draftChargeAmt);
+    const rateAmt = gramRate > 0 ? Math.round((totalWt * gramRate + Number.EPSILON) * 100) / 100 : 0;
+    const amount = Math.round((stoneCost + rateAmt + typeCost + Number.EPSILON) * 100) / 100;
+    return {
+      finishing,
+      wastageWt,
+      stoneWt,
+      stoneWastage,
+      totalWt,
+      stoneOn,
+      stoneCost,
+      gramRate,
+      rateAmt,
+      typeCost,
+      amount,
+      chargeType: draftChargeType.trim(),
+    };
+  }, [price, draftMetalWt, draftStoneWt, draftStoneWastage, draftStoneCost, draftGramRate, draftChargeAmt, draftChargeType]);
+
+  const totals = useMemo(() => ({
+    priceTotal: gold.finishing,
+    finishingTotal: gold.finishing,
+    wastageTotal: gold.wastageWt,
+    discountTotal: 0,
+    commissionTotal: 0,
+    grandTotal: Math.max(0, gold.totalWt),
+  }), [gold]);
 
   const extra = 0;
   const exchCredit = 0;
@@ -389,13 +472,6 @@ const BillingPage: React.FC = () => {
   useEffect(() => {
     setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0))));
   }, [payable, cashPaid]);
-
-  useEffect(() => {
-    const fin = parseWt(price);
-    const pur = parseWt(draftPurity);
-    if (!(fin > 0) || !(pur > 0)) return;
-    setDraftMetalWt(wastage(calcWastage(fin, pur)));
-  }, [price, draftPurity]);
 
   useEffect(() => {
     custHitRef.current?.scrollIntoView({ block: 'nearest' });
@@ -669,8 +745,19 @@ const BillingPage: React.FC = () => {
       metalWt: 0,
       itemSize: '',
       purity: 0,
+      ...blankGold,
     };
   };
+
+  const draftGold = () => ({
+    wastagePer: parseWt(draftPercent),
+    stoneWt: parseWt(draftStoneWt),
+    stoneWastage: parseWt(draftStoneWastage),
+    stoneCost: parseWt(draftStoneWt) > 0 ? parseWt(draftStoneCost) : 0,
+    gramRate: parseWt(draftGramRate),
+    chargeType: draftChargeType.trim(),
+    chargeAmt: parseWt(draftChargeAmt),
+  });
 
   const addProduct = () => {
     const itemName = search.trim();
@@ -689,7 +776,7 @@ const BillingPage: React.FC = () => {
       const key = prev.reduce((m, l) => Math.max(m, l.key), 0) + 1;
       const itemSize = draftSize.trim();
       const line: Line = pending && matchesPending(itemName, pending)
-        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt, itemSize, purity }
+        ? { ...buildLine(pending, 1, unitPrice, '', key), image1: draftImage1, image2: draftImage2, metalWt, itemSize, purity, ...draftGold() }
         : {
           key,
           productId: 0,
@@ -711,6 +798,7 @@ const BillingPage: React.FC = () => {
           metalWt,
           itemSize,
           purity,
+          ...draftGold(),
         };
       return [...prev, line];
     });
@@ -726,6 +814,13 @@ const BillingPage: React.FC = () => {
     setDraftMetalWt('');
     setDraftSize('');
     setDraftPurity('');
+    setDraftPercent('');
+    setDraftStoneWt('');
+    setDraftStoneWastage('');
+    setDraftStoneCost('');
+    setDraftGramRate('');
+    setDraftChargeType('');
+    setDraftChargeAmt('');
     setNameHits([]);
     searchRef.current?.focus();
   };
@@ -861,8 +956,9 @@ const BillingPage: React.FC = () => {
     const metalWt = parseWt(draftMetalWt);
     const itemSize = draftSize.trim();
     const purity = parseWt(draftPurity);
+    const extra = draftGold();
     if (pending && matchesPending(itemName, pending)) {
-      return { ...buildLine(pending, 1, unitPrice, '', 1), image1: draftImage1, image2: draftImage2, metalWt, itemSize, purity };
+      return { ...buildLine(pending, 1, unitPrice, '', 1), image1: draftImage1, image2: draftImage2, metalWt, itemSize, purity, ...extra };
     }
     return {
       key: 1,
@@ -885,6 +981,7 @@ const BillingPage: React.FC = () => {
       metalWt,
       itemSize,
       purity,
+      ...extra,
     };
   };
 
@@ -905,6 +1002,13 @@ const BillingPage: React.FC = () => {
       metalWt: line.metalWt || 0,
       itemSize: (line.itemSize || '').trim(),
       purity: line.purity || 0,
+      wastagePer: line.wastagePer || 0,
+      stoneWt: line.stoneWt || 0,
+      stoneWastage: line.stoneWastage || 0,
+      stoneCost: line.stoneCost || 0,
+      gramRate: line.gramRate || 0,
+      chargeType: (line.chargeType || '').trim(),
+      chargeAmt: line.chargeAmt || 0,
     }];
   };
 
@@ -996,6 +1100,11 @@ const BillingPage: React.FC = () => {
     }
     if (!customerPhone.trim() || customerPhone.trim() === '-') {
       toast.error('Enter customer phone.');
+      return;
+    }
+    if (gold.stoneOn && !draftStoneCost.trim()) {
+      toast.error('Enter stone cost.');
+      stoneCostRef.current?.focus();
       return;
     }
     setSaving(true);
@@ -1206,6 +1315,7 @@ const BillingPage: React.FC = () => {
       metalWt: Number(item.metalWt) || 0,
       itemSize: item.itemSize || '',
       purity: Number(item.purity) || 0,
+      ...goldFromSaved(item),
     }));
     setLines((prev) => (holdStillCurrent() ? mapped : prev));
     if (!holdStillCurrent()) return;
@@ -1300,6 +1410,7 @@ const BillingPage: React.FC = () => {
           metalWt: Number(item.metalWt) || 0,
           itemSize: item.itemSize || '',
           purity: Number(item.purity) || 0,
+          ...blankGold,
         });
       }
       setLines(next);
@@ -1379,6 +1490,13 @@ const BillingPage: React.FC = () => {
     setDraftMetalWt('');
     setDraftSize('');
     setDraftPurity('');
+    setDraftPercent('');
+    setDraftStoneWt('');
+    setDraftStoneWastage('');
+    setDraftStoneCost('');
+    setDraftGramRate('');
+    setDraftChargeType('');
+    setDraftChargeAmt('');
     setUploadingSlot(null);
     setSaving(false);
     setHolding(false);
@@ -1596,6 +1714,8 @@ const BillingPage: React.FC = () => {
       ) : (
         <>
           <div className="pos-top gold-form">
+            <section className="gold-sec gold-sec-wide">
+            <h3>Customer</h3>
             <div className="gold-form-row gold-form-customer">
               <div className="pos-fg gold-cust-name">
                 <span className={`pos-lbl ${missingName ? 'pos-lbl-warn' : ''}`}>Customer *</span>
@@ -1646,9 +1766,12 @@ const BillingPage: React.FC = () => {
                 {customerSuggest('phone')}
               </div>
             </div>
+            </section>
 
-            <div className="gold-form-row gold-form-item">
-              <div className="pos-fg gold-item-name">
+            <section className="gold-sec">
+            <h3>Item</h3>
+            <div className="gold-grid-2">
+              <div className="pos-fg gold-item-name gold-span-2">
                 <span className="pos-lbl">Item name</span>
                 <input
                   ref={searchRef}
@@ -1694,45 +1817,6 @@ const BillingPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="pos-fg gold-item-amt">
-                <span className="pos-lbl">Finishing wt</span>
-                <input
-                  ref={finishingRef}
-                  className="pos-inp"
-                  value={price}
-                  placeholder="0.000"
-                  inputMode="decimal"
-                  onChange={(e) => setPrice(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
-                    e.preventDefault();
-                    purityRef.current?.focus();
-                    purityRef.current?.select();
-                  }}
-                />
-              </div>
-              <div className="pos-fg gold-item-purity">
-                <span className="pos-lbl">Purity</span>
-                <input
-                  ref={purityRef}
-                  className="pos-inp"
-                  value={draftPurity}
-                  placeholder="92"
-                  inputMode="decimal"
-                  onChange={(e) => setDraftPurity(e.target.value)}
-                />
-              </div>
-              <div className="pos-fg gold-item-wt">
-                <span className="pos-lbl">Wastage wt</span>
-                <input
-                  ref={metalWtRef}
-                  className="pos-inp pos-inp-muted"
-                  value={draftMetalWt}
-                  placeholder="0.00"
-                  readOnly
-                  tabIndex={-1}
-                />
-              </div>
               <div className="pos-fg gold-item-imgs">
                 <span className="pos-lbl">Photos</span>
                 <div className="pos-img-slots">
@@ -1751,7 +1835,231 @@ const BillingPage: React.FC = () => {
                 </div>
               </div>
             </div>
+            </section>
 
+            <section className="gold-sec">
+            <h3>Weight</h3>
+            <div className="gold-grid-2">
+              <div className="pos-fg gold-item-amt">
+                <span className="pos-lbl">Finishing wt</span>
+                <input
+                  ref={finishingRef}
+                  className="pos-inp"
+                  value={price}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const had = parseWt(price) > 0;
+                    setPrice(value);
+                    if (!(parseWt(value) > 0)) {
+                      setDraftPurity('');
+                      setDraftMetalWt('');
+                      return;
+                    }
+                    if (!had) setDraftPurity((cur) => (cur.trim() ? cur : '92'));
+                    setDraftMetalWt(wastageFromPercent(value, draftPercent));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    purityRef.current?.focus();
+                    purityRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-purity">
+                <span className="pos-lbl">Purity</span>
+                <input
+                  ref={purityRef}
+                  className="pos-inp"
+                  value={draftPurity}
+                  placeholder="92"
+                  inputMode="decimal"
+                  onChange={(e) => setDraftPurity(e.target.value)}
+                  onBlur={() => {
+                    if (parseWt(price) > 0 && !draftPurity.trim()) setDraftPurity('92');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    percentRef.current?.focus();
+                    percentRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-percent">
+                <span className="pos-lbl">Percentage</span>
+                <input
+                  ref={percentRef}
+                  className="pos-inp"
+                  value={draftPercent}
+                  placeholder="6"
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    setDraftPercent(e.target.value);
+                    setDraftMetalWt(wastageFromPercent(price, e.target.value));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    stoneWtRef.current?.focus();
+                    stoneWtRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-wt">
+                <span className="pos-lbl">Wastage wt <em>auto</em></span>
+                <input
+                  ref={metalWtRef}
+                  className="pos-inp pos-inp-muted"
+                  value={draftMetalWt}
+                  placeholder="0.00"
+                  readOnly
+                  tabIndex={-1}
+                />
+              </div>
+            </div>
+            </section>
+
+            <section className="gold-sec">
+            <h3>Stone</h3>
+            <div className="gold-grid-2">
+              <div className="pos-fg gold-item-stone">
+                <span className="pos-lbl">Stone wt</span>
+                <input
+                  ref={stoneWtRef}
+                  className="pos-inp"
+                  value={draftStoneWt}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDraftStoneWt(value);
+                    if (!(parseWt(value) > 0)) setDraftStoneCost('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    stoneWastageRef.current?.focus();
+                    stoneWastageRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-stone-w">
+                <span className="pos-lbl">Stone wastage</span>
+                <input
+                  ref={stoneWastageRef}
+                  className="pos-inp"
+                  value={draftStoneWastage}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onChange={(e) => setDraftStoneWastage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    const next = parseWt(draftStoneWt) > 0 ? stoneCostRef.current : gramRateRef.current;
+                    next?.focus();
+                    next?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-stone-cost gold-span-2">
+                <span className={`pos-lbl ${gold.stoneOn && !draftStoneCost.trim() ? 'pos-lbl-warn' : ''}`}>
+                  Stone cost{gold.stoneOn ? ' *' : ''}
+                </span>
+                <input
+                  ref={stoneCostRef}
+                  className={`pos-inp ${gold.stoneOn && !draftStoneCost.trim() ? 'pos-inp-warn' : ''} ${gold.stoneOn ? '' : 'pos-inp-muted'}`}
+                  value={draftStoneCost}
+                  placeholder={gold.stoneOn ? '0.00' : 'Enter stone wt first'}
+                  inputMode="decimal"
+                  disabled={!gold.stoneOn}
+                  onChange={(e) => setDraftStoneCost(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    gramRateRef.current?.focus();
+                    gramRateRef.current?.select();
+                  }}
+                />
+              </div>
+            </div>
+            </section>
+
+            <section className="gold-sec">
+            <h3>Charges</h3>
+            <div className="gold-grid-2">
+              <div className="pos-fg gold-item-rate gold-span-2">
+                <span className="pos-lbl">1 gram rate</span>
+                <input
+                  ref={gramRateRef}
+                  className="pos-inp"
+                  value={draftGramRate}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  onChange={(e) => setDraftGramRate(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    chargeTypeRef.current?.focus();
+                    chargeTypeRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-type">
+                <span className="pos-lbl">Type</span>
+                <input
+                  ref={chargeTypeRef}
+                  className="pos-inp"
+                  value={draftChargeType}
+                  placeholder="Agmark cost"
+                  onChange={(e) => setDraftChargeType(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    chargeAmtRef.current?.focus();
+                    chargeAmtRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-type-cost">
+                <span className="pos-lbl">Type cost</span>
+                <input
+                  ref={chargeAmtRef}
+                  className="pos-inp"
+                  value={draftChargeAmt}
+                  placeholder="0.00"
+                  inputMode="decimal"
+                  onChange={(e) => setDraftChargeAmt(e.target.value)}
+                />
+              </div>
+            </div>
+            </section>
+
+            <section className="gold-sec gold-sec-wide">
+            <h3>Result</h3>
+            <div className="gold-sum">
+              <div className="gold-sum-card">
+                <div className="gold-sum-kicker">Total weight</div>
+                <div className="gold-sum-row"><span>Finishing</span><b>{money(gold.finishing)}</b></div>
+                <div className="gold-sum-row"><span>Wastage</span><b>{wastage(gold.wastageWt)}</b></div>
+                <div className="gold-sum-row"><span>Stone</span><b>− {money(gold.stoneWt)}</b></div>
+                <div className="gold-sum-row"><span>Stone wastage</span><b>+ {money(gold.stoneWastage)}</b></div>
+                <div className="gold-sum-row total"><span>Total wt</span><b>{money(payable)} g</b></div>
+              </div>
+              <div className="gold-sum-card gold-sum-money">
+                <div className="gold-sum-kicker">Amount</div>
+                <div className="gold-sum-row"><span>Stone cost</span><b>{rupee(gold.stoneCost)}</b></div>
+                <div className="gold-sum-row"><span>{money(gold.totalWt)} g × {rupee(gold.gramRate)}</span><b>{rupee(gold.rateAmt)}</b></div>
+                <div className="gold-sum-row"><span>{gold.chargeType || 'Type cost'}</span><b>{rupee(gold.typeCost)}</b></div>
+                <div className="gold-sum-row total"><span>Total amount</span><b>{rupee(gold.amount)}</b></div>
+              </div>
+            </div>
+            </section>
+
+            <section className="gold-sec gold-sec-wide">
+            <h3>Collection</h3>
             <div className="gold-form-row gold-form-pay">
               <div className="pos-fg gold-collect">
                 <span className="pos-lbl pos-lbl-em">Collected wt</span>
@@ -1796,13 +2104,20 @@ const BillingPage: React.FC = () => {
                 </div>
               )}
             </div>
+            </section>
           </div>
 
           <div className="pos-bottom gold-bottom">
             <div className="pos-footer">
-              <div className="pos-total-box">
-                <span>Finishing {money(totals.finishingTotal)} + Wastage {wastage(totals.wastageTotal)}</span>
-                <strong>{money(payable)}</strong>
+              <div className="pos-total-box gold-foot-totals">
+                <div>
+                  <span>Total wt</span>
+                  <strong>{money(payable)} g</strong>
+                </div>
+                <div>
+                  <span>Amount</span>
+                  <strong className="gold-foot-amt">{rupee(gold.amount)}</strong>
+                </div>
               </div>
               <div className="pos-acts gold-acts">
                 <button className="pos-btn pos-btn-outline gold-desk-only" type="button" onClick={openDupe}>Last Bills</button>

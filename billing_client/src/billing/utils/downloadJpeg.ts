@@ -34,21 +34,29 @@ const inlineImages = async (root: HTMLElement) => {
   );
 };
 
-const PHONE_CARD_WIDTH = 390;
+const CARD_WIDTH = 390;
 
 export async function downloadElementJpeg(node: HTMLElement, filename: string) {
   await inlineImages(node);
   await waitForImages(node);
   const { toJpeg } = await import('html-to-image');
+  const height = Math.max(node.scrollHeight, node.offsetHeight, 1);
   const dataUrl = await toJpeg(node, {
     quality: 0.95,
-    pixelRatio: 2,
+    pixelRatio: 1080 / CARD_WIDTH,
     cacheBust: true,
     backgroundColor: '#fffaf2',
-    width: PHONE_CARD_WIDTH,
+    width: CARD_WIDTH,
+    height,
     style: {
-      width: `${PHONE_CARD_WIDTH}px`,
-      maxWidth: `${PHONE_CARD_WIDTH}px`,
+      width: `${CARD_WIDTH}px`,
+      maxWidth: `${CARD_WIDTH}px`,
+      transform: 'none',
+      zoom: '1',
+      left: '0',
+      top: '0',
+      margin: '0',
+      position: 'relative',
     },
   });
   const a = document.createElement('a');

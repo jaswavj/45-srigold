@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
+import { goldAmount, goldRateAmt, goldTotalWt, GoldParts } from '../../utils/goldCalc';
 import { sriImageUrl } from '../../utils/sriImages';
 import './BillDetailModal.css';
 
@@ -43,6 +44,17 @@ const payLabel = (mode?: string | null) => {
   }
   return mode || 'Collected wt';
 };
+const rupees = (n?: number | null) => `₹${(Number(n) || 0).toFixed(2)}`;
+const partsOf = (line: Line): GoldParts => ({
+  finishing: line.price,
+  wastage: line.metalWt,
+  stoneWt: line.stoneWt,
+  stoneWastage: line.stoneWastage,
+  stoneCost: line.stoneCost,
+  gramRate: line.gramRate,
+  chargeAmt: line.chargeAmt,
+});
+
 
 const Photo: React.FC<{ fileName?: string; onOpen?: () => void }> = ({ fileName, onOpen }) => {
   if (fileName) {
@@ -133,7 +145,17 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                     <div className="gbd-item-name">{line.name || '-'}{line.itemSize ? ` · ${line.itemSize}` : ''}</div>
                     {wt(line.price) ? <div className="gbd-item-wt">Finishing wt: {wt(line.price)}</div> : null}
                     {Number(line.purity) > 0 ? <div className="gbd-item-wt">Purity: {line.purity}</div> : null}
+                    {Number(line.wastagePer) > 0 ? <div className="gbd-item-wt">Percentage: {line.wastagePer}</div> : null}
                     {wt(line.metalWt, 2) ? <div className="gbd-item-wt">Wastage wt: {wt(line.metalWt, 2)}</div> : null}
+                    {wt(line.stoneWt) ? <div className="gbd-item-wt">Stone wt: {wt(line.stoneWt)}</div> : null}
+                    {wt(line.stoneWastage) ? <div className="gbd-item-wt">Stone wastage: {wt(line.stoneWastage)}</div> : null}
+                    <div className="gbd-item-wt">Total wt: {goldTotalWt(partsOf(line)).toFixed(3)}</div>
+                    {Number(line.stoneCost) > 0 ? <div className="gbd-item-wt">Stone cost: {rupees(line.stoneCost)}</div> : null}
+                    {Number(line.gramRate) > 0 ? <div className="gbd-item-wt">1 gram rate: {rupees(line.gramRate)} · Gold {rupees(goldRateAmt(partsOf(line)))}</div> : null}
+                    {(Number(line.chargeAmt) > 0 || (line.chargeType || '').trim()) ? (
+                      <div className="gbd-item-wt">{(line.chargeType || '').trim() || 'Type'}: {rupees(line.chargeAmt)}</div>
+                    ) : null}
+                    {goldAmount(partsOf(line)) > 0 ? <div className="gbd-item-wt">Amount: {rupees(goldAmount(partsOf(line)))}</div> : null}
                   </div>
                 </div>
               ))}

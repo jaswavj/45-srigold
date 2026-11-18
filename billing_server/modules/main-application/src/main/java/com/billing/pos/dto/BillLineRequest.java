@@ -17,4 +17,11 @@ public class BillLineRequest {
     private Double metalWt;
     private String itemSize;
     private Double purity;
+    private Double wastagePer;
+    private Double stoneWt;
+    private Double stoneWastage;
+    private Double stoneCost;
+    private Double gramRate;
+    private String chargeType;
+    private Double chargeAmt;
 }

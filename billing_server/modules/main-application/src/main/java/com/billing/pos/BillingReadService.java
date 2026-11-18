@@ -32,6 +32,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class BillingReadService {
 
+    private static final String GOLD_COLS =
+            "IFNULL(d.wastage_per, 0) AS wastage_per, IFNULL(d.stone_wt, 0) AS stone_wt, " +
+            "IFNULL(d.stone_wastage, 0) AS stone_wastage, IFNULL(d.stone_cost, 0) AS stone_cost, " +
+            "IFNULL(d.gram_rate, 0) AS gram_rate, IFNULL(d.charge_type, '') AS charge_type, " +
+            "IFNULL(d.charge_amt, 0) AS charge_amt";
+
     private final JdbcTemplate jdbcTemplate;
     private volatile boolean quotationFlagsReady;
 
@@ -48,11 +54,13 @@ public class BillingReadService {
         addTableColumn("prod_bill_details", "metal_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         addTableColumn("prod_bill_details", "item_size", "VARCHAR(50) NULL");
         addTableColumn("prod_bill_details", "purity", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addGoldColumns("prod_bill_details");
         addTableColumn("prod_quotation_details", "image1", "VARCHAR(255) NULL");
         addTableColumn("prod_quotation_details", "image2", "VARCHAR(255) NULL");
         addTableColumn("prod_quotation_details", "metal_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         addTableColumn("prod_quotation_details", "item_size", "VARCHAR(50) NULL");
         addTableColumn("prod_quotation_details", "purity", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addGoldColumns("prod_quotation_details");
         quotationFlagsReady = true;
     }
 
@@ -69,6 +77,16 @@ public class BillingReadService {
 
     private void addBillColumn(String name, String definition) {
         addTableColumn("prod_bill", name, definition);
+    }
+
+    private void addGoldColumns(String table) {
+        addTableColumn(table, "wastage_per", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addTableColumn(table, "stone_wt", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addTableColumn(table, "stone_wastage", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        addTableColumn(table, "stone_cost", "DOUBLE(12,2) NOT NULL DEFAULT 0.00");
+        addTableColumn(table, "gram_rate", "DOUBLE(12,2) NOT NULL DEFAULT 0.00");
+        addTableColumn(table, "charge_type", "VARCHAR(80) NULL");
+        addTableColumn(table, "charge_amt", "DOUBLE(12,2) NOT NULL DEFAULT 0.00");
     }
 
     private void addTableColumn(String table, String name, String definition) {
@@ -272,7 +290,7 @@ public class BillingReadService {
         return jdbcTemplate.query(
                 "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(b.id, 0) AS batch_id, IFNULL(b.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
-                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity " +
+                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, " + GOLD_COLS + " " +
                         "FROM prod_quotation_details d " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
                         "LEFT JOIN prod_batch b ON b.product_id = p.id " +
@@ -296,6 +314,7 @@ public class BillingReadService {
                     row.setMetalWt(rs.getDouble("metal_wt"));
                     row.setItemSize(nz(rs.getString("item_size")));
                     row.setPurity(rs.getDouble("purity"));
+                    fillGold(row, rs);
                     return row;
                 },
                 quotId
@@ -419,7 +438,7 @@ public class BillingReadService {
         bill.setProducts(jdbcTemplate.query(
                 "SELECT d.prod_id, p.name AS prod_name, p.code, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(d.commission, 0) AS commission, IFNULL(u.name, '') AS unit_name, " +
-                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, " +
+                        "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, " + GOLD_COLS + ", " +
                         "IFNULL((SELECT id FROM prod_batch WHERE product_id = d.prod_id ORDER BY id DESC LIMIT 1), 0) AS batch_id " +
                         "FROM prod_bill_details d " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
@@ -443,6 +462,7 @@ public class BillingReadService {
                     row.setMetalWt(rs.getDouble("metal_wt"));
                     row.setItemSize(nz(rs.getString("item_size")));
                     row.setPurity(rs.getDouble("purity"));
+                    fillGold(row, rs);
                     return row;
                 },
                 bill.getBillId()
@@ -456,7 +476,7 @@ public class BillingReadService {
                 "SELECT b.id AS bill_id, b.bill_display, b.date, b.time, " +
                         "IFNULL(NULLIF(TRIM(c.name), ''), IFNULL(b.cusName, '')) AS customer_name, " +
                         "IFNULL(NULLIF(TRIM(c.phone_number), ''), IFNULL(b.cusPhn, '')) AS phone, " +
-                        "p.name AS item_name, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, IFNULL(d.metal_wt, 0) AS metal_wt, d.price AS cost, " +
+                        "p.name AS item_name, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, IFNULL(d.metal_wt, 0) AS metal_wt, " + GOLD_COLS + ", d.price AS cost, " +
                         "IFNULL(b.paid, 0) AS paid, IFNULL(b.payable, 0) AS payable, " +
                         "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2 " +
                         "FROM prod_bill b " +
@@ -495,6 +515,13 @@ public class BillingReadService {
         row.setItemSize(nz(rs.getString("item_size")));
         row.setPurity(rs.getDouble("purity"));
         row.setMetalWt(rs.getDouble("metal_wt"));
+        row.setWastagePer(rs.getDouble("wastage_per"));
+        row.setStoneWt(rs.getDouble("stone_wt"));
+        row.setStoneWastage(rs.getDouble("stone_wastage"));
+        row.setStoneCost(rs.getDouble("stone_cost"));
+        row.setGramRate(rs.getDouble("gram_rate"));
+        row.setChargeType(nz(rs.getString("charge_type")));
+        row.setChargeAmt(rs.getDouble("charge_amt"));
         row.setCost(rs.getDouble("cost"));
         row.setPaid(rs.getDouble("paid"));
         row.setPayable(rs.getDouble("payable"));
@@ -512,7 +539,7 @@ public class BillingReadService {
         String sql =
                 "SELECT b.id AS bill_id, b.bill_display, b.date, " +
                         "IFNULL(NULLIF(TRIM(c.name), ''), IFNULL(b.cusName, '')) AS customer_name, " +
-                        "IFNULL(p.name, '') AS item_name, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.price, 0) AS finishing_wt, " +
+                        "IFNULL(p.name, '') AS item_name, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.price, 0) AS finishing_wt, IFNULL(d.purity, 0) AS purity, " + GOLD_COLS + ", " +
                         "IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2 " +
                         "FROM prod_bill b " +
                         "JOIN prod_bill_details d ON d.bill_id = b.id " +
@@ -524,36 +551,33 @@ public class BillingReadService {
             sql += "AND IFNULL(p.name, '') LIKE ? ";
         }
         sql += "ORDER BY b.date DESC, b.id DESC, d.id";
-        List<GalleryPhotoData> photos = new ArrayList<>();
-        org.springframework.jdbc.core.RowCallbackHandler handler = rs -> {
-            addPhoto(photos, rs, "image1");
-            addPhoto(photos, rs, "image2");
+        org.springframework.jdbc.core.RowMapper<GalleryPhotoData> mapper = (rs, i) -> {
+            GalleryPhotoData photo = new GalleryPhotoData();
+            photo.setBillId(rs.getLong("bill_id"));
+            photo.setBillDisplay(nz(rs.getString("bill_display")));
+            java.sql.Date date = rs.getDate("date");
+            photo.setDate(date == null ? "" : String.valueOf(date));
+            String name = nz(rs.getString("customer_name"));
+            photo.setCustomerName("-".equals(name) ? "" : name);
+            photo.setItemName(nz(rs.getString("item_name")));
+            photo.setMetalWt(rs.getDouble("metal_wt"));
+            photo.setFinishingWt(rs.getDouble("finishing_wt"));
+            photo.setPurity(rs.getDouble("purity"));
+            photo.setWastagePer(rs.getDouble("wastage_per"));
+            photo.setStoneWt(rs.getDouble("stone_wt"));
+            photo.setStoneWastage(rs.getDouble("stone_wastage"));
+            photo.setStoneCost(rs.getDouble("stone_cost"));
+            photo.setGramRate(rs.getDouble("gram_rate"));
+            photo.setChargeType(nz(rs.getString("charge_type")));
+            photo.setChargeAmt(rs.getDouble("charge_amt"));
+            photo.setImage1(nz(rs.getString("image1")));
+            photo.setImage2(nz(rs.getString("image2")));
+            return photo;
         };
         if (!term.isEmpty()) {
-            jdbcTemplate.query(sql, handler, "%" + term + "%");
-        } else {
-            jdbcTemplate.query(sql, handler);
+            return jdbcTemplate.query(sql, mapper, "%" + term + "%");
         }
-        return photos;
-    }
-
-    private void addPhoto(List<GalleryPhotoData> photos, java.sql.ResultSet rs, String key) throws java.sql.SQLException {
-        String file = nz(rs.getString(key));
-        if (file.isBlank()) {
-            return;
-        }
-        GalleryPhotoData photo = new GalleryPhotoData();
-        photo.setBillId(rs.getLong("bill_id"));
-        photo.setBillDisplay(nz(rs.getString("bill_display")));
-        java.sql.Date date = rs.getDate("date");
-        photo.setDate(date == null ? "" : String.valueOf(date));
-        String name = nz(rs.getString("customer_name"));
-        photo.setCustomerName("-".equals(name) ? "" : name);
-        photo.setItemName(nz(rs.getString("item_name")));
-        photo.setMetalWt(rs.getDouble("metal_wt"));
-        photo.setFinishingWt(rs.getDouble("finishing_wt"));
-        photo.setFileName(file);
-        photos.add(photo);
+        return jdbcTemplate.query(sql, mapper);
     }
 
     public List<RecentBillData> recentBills() {
@@ -648,7 +672,7 @@ public class BillingReadService {
                 "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, IFNULL(d.is_exchanged,0) AS is_exchanged, " +
                         "IFNULL(cat.name,'') AS category_name, " +
                         "CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN '' ELSE CAST(p.hsn AS CHAR) END AS hsn, " +
-                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size,'') AS item_size, IFNULL(d.purity, 0) AS purity " +
+                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.image1,'') AS image1, IFNULL(d.image2,'') AS image2, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size,'') AS item_size, IFNULL(d.purity, 0) AS purity, " + GOLD_COLS + " " +
                         "FROM prod_bill_details d JOIN prod_product p ON p.id = d.prod_id " +
                         "JOIN prod_bill b ON b.id = d.bill_id " +
                         "LEFT JOIN prod_category cat ON cat.id = p.category_id " +
@@ -672,6 +696,7 @@ public class BillingReadService {
                     line.setMetalWt(rs.getDouble("metal_wt"));
                     line.setItemSize(nz(rs.getString("item_size")));
                     line.setPurity(rs.getDouble("purity"));
+                    fillGold(line, rs);
                     return line;
                 },
                 billNo
@@ -727,7 +752,7 @@ public class BillingReadService {
                 "SELECT p.code, p.name, d.qty, d.price, d.disc, d.total, d.gst, " +
                         "IFNULL(cat.name,'') AS category_name, " +
                         "CASE WHEN p.hsn IS NULL OR p.hsn = 0 THEN '' ELSE CAST(p.hsn AS CHAR) END AS hsn, " +
-                        "IFNULL(u.name,'') AS unit_name " +
+                        "IFNULL(u.name,'') AS unit_name, IFNULL(d.metal_wt, 0) AS metal_wt, IFNULL(d.item_size,'') AS item_size, IFNULL(d.purity, 0) AS purity, " + GOLD_COLS + " " +
                         "FROM prod_quotation_details d JOIN prod_product p ON p.id = d.prod_id " +
                         "LEFT JOIN prod_category cat ON cat.id = p.category_id " +
                         "LEFT JOIN prod_units u ON u.id = p.unit_id " +
@@ -744,6 +769,10 @@ public class BillingReadService {
                     line.setDiscount(rs.getDouble("disc"));
                     line.setTotal(rs.getDouble("total"));
                     line.setGst(rs.getInt("gst"));
+                    line.setMetalWt(rs.getDouble("metal_wt"));
+                    line.setItemSize(nz(rs.getString("item_size")));
+                    line.setPurity(rs.getDouble("purity"));
+                    fillGold(line, rs);
                     return line;
                 },
                 quotId
@@ -882,6 +911,26 @@ public class BillingReadService {
 
     private String nz(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    private void fillGold(QuotationLineData row, java.sql.ResultSet rs) throws java.sql.SQLException {
+        row.setWastagePer(rs.getDouble("wastage_per"));
+        row.setStoneWt(rs.getDouble("stone_wt"));
+        row.setStoneWastage(rs.getDouble("stone_wastage"));
+        row.setStoneCost(rs.getDouble("stone_cost"));
+        row.setGramRate(rs.getDouble("gram_rate"));
+        row.setChargeType(nz(rs.getString("charge_type")));
+        row.setChargeAmt(rs.getDouble("charge_amt"));
+    }
+
+    private void fillGold(PrintBillData.PrintLineData line, java.sql.ResultSet rs) throws java.sql.SQLException {
+        line.setWastagePer(rs.getDouble("wastage_per"));
+        line.setStoneWt(rs.getDouble("stone_wt"));
+        line.setStoneWastage(rs.getDouble("stone_wastage"));
+        line.setStoneCost(rs.getDouble("stone_cost"));
+        line.setGramRate(rs.getDouble("gram_rate"));
+        line.setChargeType(nz(rs.getString("charge_type")));
+        line.setChargeAmt(rs.getDouble("charge_amt"));
     }
 
     private String productLookupSql(String where) {
