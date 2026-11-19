@@ -50,6 +50,8 @@ const partsOf = (line: Line): GoldParts => ({
   wastage: line.metalWt,
   stoneWt: line.stoneWt,
   stoneWastage: line.stoneWastage,
+  purity: line.purity,
+  wastagePer: line.wastagePer,
   stoneCost: line.stoneCost,
   gramRate: line.gramRate,
   chargeAmt: line.chargeAmt,
@@ -149,7 +151,7 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
                     {wt(line.metalWt, 2) ? <div className="gbd-item-wt">Wastage wt: {wt(line.metalWt, 2)}</div> : null}
                     {wt(line.stoneWt) ? <div className="gbd-item-wt">Stone wt: {wt(line.stoneWt)}</div> : null}
                     {wt(line.stoneWastage) ? <div className="gbd-item-wt">Stone wastage: {wt(line.stoneWastage)}</div> : null}
-                    <div className="gbd-item-wt">Total wt: {goldTotalWt(partsOf(line)).toFixed(3)}</div>
+                    <div className="gbd-item-wt">Total wt: {goldTotalWt(partsOf(line)).toFixed(2)}</div>
                     {Number(line.stoneCost) > 0 ? <div className="gbd-item-wt">Stone cost: {rupees(line.stoneCost)}</div> : null}
                     {Number(line.gramRate) > 0 ? <div className="gbd-item-wt">1 gram rate: {rupees(line.gramRate)} · Gold {rupees(goldRateAmt(partsOf(line)))}</div> : null}
                     {(Number(line.chargeAmt) > 0 || (line.chargeType || '').trim()) ? (

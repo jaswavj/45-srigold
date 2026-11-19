@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../api/billing/billing-api-service';
 import logo from '../../assets/images/logo.png';
-import { goldAmount, goldRateAmt, goldTotalWt, GoldParts, round3 } from '../utils/goldCalc';
+import { goldAmount, goldRateAmt, goldTotalWt, GoldParts, round2 } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import { downloadElementJpeg } from '../utils/downloadJpeg';
 import './FinishedShareCard.css';
@@ -92,6 +92,8 @@ const partsOf = (item: ShareItem): GoldParts => ({
   wastage: item.metalWt,
   stoneWt: item.stoneWt,
   stoneWastage: item.stoneWastage,
+  purity: item.purity,
+  wastagePer: item.wastagePer,
   stoneCost: item.stoneCost,
   gramRate: item.gramRate,
   chargeAmt: item.chargeAmt,
@@ -151,7 +153,6 @@ export const FinishedShareCard: React.FC<{
       wastage: wastageSum,
       stone,
       stoneWastage,
-      finalWt: round3(finishing - stone + stoneWastage),
       total,
       stoneCost,
       rateAmt,
@@ -229,7 +230,7 @@ export const FinishedShareCard: React.FC<{
                 const lineWt = goldTotalWt(partsOf(item));
                 const charge = (item.chargeType || '').trim();
                 const finishing = Number(item.price) || 0;
-                const finalWt = round3(finishing - (Number(item.stoneWt) || 0) + (Number(item.stoneWastage) || 0));
+                const finalWt = round2(finishing - (Number(item.stoneWt) || 0) + (Number(item.stoneWastage) || 0));
                 return (
                 <div key={`${item.name}-${i}`} className="gold-share-body">
                   {(item.image1 || item.image2) ? (
@@ -256,11 +257,11 @@ export const FinishedShareCard: React.FC<{
                     <Step label="Finishing wt" value={has(item.price) ? `${wt(item.price)} g` : null} />
                     <Step label="Stone wt" value={has(item.stoneWt) ? `− ${wt(item.stoneWt)} g` : null} tone="minus" />
                     <Step label="Stone wastage" value={has(item.stoneWastage) ? `+ ${wt(item.stoneWastage)} g` : null} tone="plus" />
-                    <Step label="Final wt" value={finishing > 0 ? `${finalWt.toFixed(3)} g` : null} tone="final" />
+                    <Step label="Final wt" value={finishing > 0 ? `${finalWt.toFixed(2)} g` : null} tone="final" />
                     <Step label="Purity" value={has(item.purity) ? String(item.purity) : null} />
                     <Step label="Percentage" value={has(item.wastagePer) ? String(item.wastagePer) : null} />
                     <Step label="Wastage wt" value={has(item.metalWt) ? `${wt(item.metalWt, 2)} g` : null} tone="wastage" />
-                    <Step label="Total wt" value={lineWt > 0 ? `${lineWt.toFixed(3)} g` : null} tone="total" />
+                    <Step label="Total wt" value={lineWt > 0 ? `${lineWt.toFixed(2)} g` : null} tone="total" />
                   </div>
                   <div className="gold-share-kvs">
                     <Kv label="Stone cost" value={has(item.stoneCost) ? rupees(item.stoneCost) : null} />
@@ -274,7 +275,7 @@ export const FinishedShareCard: React.FC<{
               })}
 
               <div className="gold-share-totals gold-share-steps">
-                <Step label="Total wt" value={totals.total > 0 ? `${totals.total.toFixed(3)} g` : null} tone="total" />
+                <Step label="Total wt" value={totals.total > 0 ? `${totals.total.toFixed(2)} g` : null} tone="total" />
                 <Step label="Total amount" value={totals.amount > 0 ? rupees(totals.amount) : null} tone="total" />
                 <Step label="Collected wt" value={has(totals.paid) ? `${wt(totals.paid)} g` : `${wt(0)} g`} />
                 {totals.advance > 0.0005 ? (

@@ -123,6 +123,8 @@ const GalleryPage: React.FC = () => {
       wastage: photo.metalWt,
       stoneWt: photo.stoneWt,
       stoneWastage: photo.stoneWastage,
+      purity: photo.purity,
+      wastagePer: photo.wastagePer,
       stoneCost: photo.stoneCost,
       gramRate: photo.gramRate,
       chargeAmt: photo.chargeAmt,
@@ -136,7 +138,7 @@ const GalleryPage: React.FC = () => {
       wastage ? `Wastage wt: ${wastage}` : '',
       wt(photo.stoneWt) ? `Stone ${wt(photo.stoneWt)}` : '',
       wt(photo.stoneWastage) ? `Stone wastage ${wt(photo.stoneWastage)}` : '',
-      total > 0 ? `Total ${total.toFixed(3)}` : '',
+      total > 0 ? `Total ${total.toFixed(2)}` : '',
       amount > 0 ? `₹${amount.toFixed(2)}` : '',
     ].filter(Boolean).join(' · ');
   };

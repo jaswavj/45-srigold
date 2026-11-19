@@ -57,6 +57,8 @@ const rowGold = (row: ListRow) => ({
   wastage: row.metalWt,
   stoneWt: row.stoneWt,
   stoneWastage: row.stoneWastage,
+  purity: row.purity,
+  wastagePer: row.wastagePer,
   stoneCost: row.stoneCost,
   gramRate: row.gramRate,
   chargeAmt: row.chargeAmt,
@@ -346,7 +348,7 @@ const BillingListPage: React.FC = () => {
                   <td className={!(Number(row.metalWt) > 0) ? 'gold-list-wt-pending' : ''}>{wt(row.metalWt, 2)}</td>
                   <td>{opt(row.stoneWt)}</td>
                   <td>{opt(row.stoneWastage)}</td>
-                  <td>{goldTotalWt(rowGold(row)).toFixed(3)}</td>
+                  <td>{goldTotalWt(rowGold(row)).toFixed(2)}</td>
                   <td>
                     {goldAmount(rowGold(row)) > 0 ? (
                       <div>
@@ -400,7 +402,7 @@ const BillingListPage: React.FC = () => {
               <div className={`gold-list-card-wt${!(Number(row.metalWt) > 0) ? ' gold-list-wt-pending' : ''}`}>Wastage wt: {wt(row.metalWt, 2)}</div>
               <div className="gold-list-card-wt">Stone wt: {opt(row.stoneWt)}</div>
               <div className="gold-list-card-wt">Stone wastage: {opt(row.stoneWastage)}</div>
-              <div className="gold-list-card-wt">Total wt: {goldTotalWt(rowGold(row)).toFixed(3)}</div>
+              <div className="gold-list-card-wt">Total wt: {goldTotalWt(rowGold(row)).toFixed(2)}</div>
               <div className="gold-list-card-wt">Amount: {goldAmount(rowGold(row)) > 0 ? rupee(goldAmount(rowGold(row))) : '-'}</div>
               <div className="gold-list-card-photos">
                 <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />

@@ -403,7 +403,7 @@ const BillingPage: React.FC = () => {
     const wastageWt = parseWt(draftMetalWt);
     const stoneWt = parseWt(draftStoneWt);
     const stoneWastage = parseWt(draftStoneWastage);
-    const totalWt = calcTotalWt(finishing, wastageWt, stoneWt, stoneWastage);
+    const totalWt = calcTotalWt(finishing, stoneWt, stoneWastage, parseWt(draftPurity), parseWt(draftPercent));
     const stoneOn = stoneWt > 0;
     const stoneCost = stoneOn ? parseWt(draftStoneCost) : 0;
     const gramRate = parseWt(draftGramRate);
@@ -424,7 +424,7 @@ const BillingPage: React.FC = () => {
       amount,
       chargeType: draftChargeType.trim(),
     };
-  }, [price, draftMetalWt, draftStoneWt, draftStoneWastage, draftStoneCost, draftGramRate, draftChargeAmt, draftChargeType]);
+  }, [price, draftMetalWt, draftStoneWt, draftStoneWastage, draftStoneCost, draftGramRate, draftChargeAmt, draftChargeType, draftPurity, draftPercent]);
 
   const totals = useMemo(() => ({
     priceTotal: gold.finishing,
@@ -473,7 +473,7 @@ const BillingPage: React.FC = () => {
     if (!autoPay.current) return;
     setMode('1');
     setPayType('1');
-    setCashPaid(payable > 0.0005 ? money(payable) : '');
+    setCashPaid(payable > 0.0005 ? wastage(payable) : '');
     setBankPaid('0');
     setBalance('0');
   }, [payable, payEpoch]);
@@ -2062,12 +2062,12 @@ const BillingPage: React.FC = () => {
                 <div className="gold-sum-row"><span>Wastage</span><b>{wastage(gold.wastageWt)}</b></div>
                 <div className="gold-sum-row"><span>Stone</span><b>− {money(gold.stoneWt)}</b></div>
                 <div className="gold-sum-row"><span>Stone wastage</span><b>+ {money(gold.stoneWastage)}</b></div>
-                <div className="gold-sum-row total"><span>Total wt</span><b>{money(payable)} g</b></div>
+                <div className="gold-sum-row total"><span>Total wt</span><b>{wastage(payable)} g</b></div>
               </div>
               <div className="gold-sum-card gold-sum-money">
                 <div className="gold-sum-kicker">Amount</div>
                 <div className="gold-sum-row"><span>Stone cost</span><b>{rupee(gold.stoneCost)}</b></div>
-                <div className="gold-sum-row"><span>{money(gold.totalWt)} g × {rupee(gold.gramRate)}</span><b>{rupee(gold.rateAmt)}</b></div>
+                <div className="gold-sum-row"><span>{wastage(gold.totalWt)} g × {rupee(gold.gramRate)}</span><b>{rupee(gold.rateAmt)}</b></div>
                 <div className="gold-sum-row"><span>{gold.chargeType || 'Type cost'}</span><b>{rupee(gold.typeCost)}</b></div>
                 <div className="gold-sum-row total"><span>Total amount</span><b>{rupee(gold.amount)}</b></div>
               </div>
@@ -2128,7 +2128,7 @@ const BillingPage: React.FC = () => {
               <div className="pos-total-box gold-foot-totals">
                 <div>
                   <span>Total wt</span>
-                  <strong>{money(payable)} g</strong>
+                  <strong>{wastage(payable)} g</strong>
                 </div>
                 <div>
                   <span>Amount</span>
@@ -2139,11 +2139,6 @@ const BillingPage: React.FC = () => {
                 <button className="pos-btn pos-btn-outline gold-desk-only" type="button" onClick={openDupe}>Last Bills</button>
                 <button className="pos-btn gold-list-btn" type="button" onClick={() => navigate(routerPathNames.billingList)}>LIST</button>
                 <button className="pos-btn pos-btn-outline" type="button" title="Alt+R" onClick={newBill}>REFRESH</button>
-                {editBillId > 0 && (
-                  <button className="pos-btn pos-btn-danger" type="button" onClick={() => { setCancelReason(''); setCancelOpen(true); }}>
-                    Cancel
-                  </button>
-                )}
                 <button
                   className={`pos-btn gold-save-btn ${showSavedBill ? 'pos-btn-saved' : 'pos-btn-navy'}`}
                   type="button"
