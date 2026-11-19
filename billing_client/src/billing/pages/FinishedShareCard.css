@@ -171,18 +171,82 @@
   font-size: 18px;
   font-weight: 900;
   color: #1a1208;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
 }
 
-.gold-share-kvs,
-.gold-share-totals {
+.gold-share-size {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  color: #6b4a1e;
+}
+
+.gold-share-steps {
+  display: flex;
+  flex-direction: column;
+  background: #fff7e8;
+  border: 1px solid #ead7a8;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.gold-share-steps .step {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #ead7a8;
+}
+
+.gold-share-steps .step:last-child {
+  border-bottom: none;
+}
+
+.gold-share-steps .step span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #7a5410;
+}
+
+.gold-share-steps .step b {
+  font-size: 15px;
+  font-weight: 900;
+  color: #1a1208;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.gold-share-steps .step.minus b {
+  color: #b45309;
+}
+
+.gold-share-steps .step.plus b {
+  color: #15803d;
+}
+
+.gold-share-steps .step.final,
+.gold-share-steps .step.wastage,
+.gold-share-steps .step.total {
+  background: #fff3dc;
+}
+
+.gold-share-steps .step.final b,
+.gold-share-steps .step.wastage b,
+.gold-share-steps .step.total b {
+  font-size: 16px;
+}
+
+.gold-share-kvs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 7px;
 }
 
-.gold-share-kvs .kv,
-.gold-share-totals > div {
+.gold-share-kvs .kv {
   background: #fff7e8;
   border: 1px solid #ead7a8;
   border-radius: 8px;
@@ -190,22 +254,11 @@
   min-width: 0;
 }
 
-.gold-share-totals {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #ead7a8;
-}
-
-.gold-share-totals > div {
-  background: #fff;
-}
-
 .gold-share-kvs .kv.wide {
   grid-column: 1 / -1;
 }
 
-.gold-share-kvs .kv span,
-.gold-share-totals > div span {
+.gold-share-kvs .kv span {
   display: block;
   font-size: 11px;
   font-weight: 800;
@@ -215,8 +268,7 @@
   margin-bottom: 2px;
 }
 
-.gold-share-kvs .kv b,
-.gold-share-totals > div b {
+.gold-share-kvs .kv b {
   display: block;
   font-size: 14px;
   font-weight: 900;
@@ -225,20 +277,11 @@
   white-space: nowrap;
 }
 
-.gold-share-totals .gold-share-total {
-  background: #fff3dc;
-}
-
-.gold-share-totals .gold-share-total b {
-  font-size: 15px;
-}
-
-.gold-share-totals .due b {
-  color: #b45309;
-}
-
-.gold-share-totals .ok b {
-  color: #15803d;
+.gold-share-totals {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ead7a8;
+  border-radius: 10px;
 }
 
 .gold-share-thanks {

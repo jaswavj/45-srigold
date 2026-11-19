@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../api/billing/billing-api-service';
 import logo from '../../assets/images/logo.png';
-import { goldAmount, goldRateAmt, goldTotalWt, GoldParts } from '../utils/goldCalc';
+import { goldAmount, goldRateAmt, goldTotalWt, GoldParts, round3 } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import { downloadElementJpeg } from '../utils/downloadJpeg';
 import './FinishedShareCard.css';
@@ -73,6 +73,20 @@ const Kv: React.FC<{ label: string; value?: React.ReactNode; wide?: boolean }> =
     </div>
   );
 };
+
+const Step: React.FC<{
+  label: string;
+  value?: React.ReactNode;
+  tone?: 'minus' | 'plus' | 'final' | 'wastage' | 'total';
+}> = ({ label, value, tone }) => {
+  if (value == null || value === '') return null;
+  return (
+    <div className={`step${tone ? ` ${tone}` : ''}`}>
+      <span>{label}</span>
+      <b>{value}</b>
+    </div>
+  );
+};
 const partsOf = (item: ShareItem): GoldParts => ({
   finishing: item.price,
   wastage: item.metalWt,
@@ -137,6 +151,7 @@ export const FinishedShareCard: React.FC<{
       wastage: wastageSum,
       stone,
       stoneWastage,
+      finalWt: round3(finishing - stone + stoneWastage),
       total,
       stoneCost,
       rateAmt,
@@ -213,6 +228,8 @@ export const FinishedShareCard: React.FC<{
                 const lineAmt = goldAmount(partsOf(item));
                 const lineWt = goldTotalWt(partsOf(item));
                 const charge = (item.chargeType || '').trim();
+                const finishing = Number(item.price) || 0;
+                const finalWt = round3(finishing - (Number(item.stoneWt) || 0) + (Number(item.stoneWastage) || 0));
                 return (
                 <div key={`${item.name}-${i}`} className="gold-share-body">
                   {(item.image1 || item.image2) ? (
@@ -232,15 +249,20 @@ export const FinishedShareCard: React.FC<{
                     </div>
                   ) : null}
                   {item.name ? <div className="gold-share-item-name">{item.name}</div> : null}
+                  {(item.itemSize || '').trim() ? (
+                    <div className="gold-share-size">Size {(item.itemSize || '').trim()}</div>
+                  ) : null}
+                  <div className="gold-share-steps">
+                    <Step label="Finishing wt" value={has(item.price) ? `${wt(item.price)} g` : null} />
+                    <Step label="Stone wt" value={has(item.stoneWt) ? `− ${wt(item.stoneWt)} g` : null} tone="minus" />
+                    <Step label="Stone wastage" value={has(item.stoneWastage) ? `+ ${wt(item.stoneWastage)} g` : null} tone="plus" />
+                    <Step label="Final wt" value={finishing > 0 ? `${finalWt.toFixed(3)} g` : null} tone="final" />
+                    <Step label="Purity" value={has(item.purity) ? String(item.purity) : null} />
+                    <Step label="Percentage" value={has(item.wastagePer) ? String(item.wastagePer) : null} />
+                    <Step label="Wastage wt" value={has(item.metalWt) ? `${wt(item.metalWt, 2)} g` : null} tone="wastage" />
+                    <Step label="Total wt" value={lineWt > 0 ? `${lineWt.toFixed(3)} g` : null} tone="total" />
+                  </div>
                   <div className="gold-share-kvs">
-                    <Kv label="Size" value={(item.itemSize || '').trim()} />
-                    <Kv label="Finishing wt" value={has(item.price) ? wt(item.price) : null} />
-                    <Kv label="Purity" value={has(item.purity) ? item.purity : null} />
-                    <Kv label="Percentage" value={has(item.wastagePer) ? item.wastagePer : null} />
-                    <Kv label="Wastage wt" value={has(item.metalWt) ? wt(item.metalWt, 2) : null} />
-                    <Kv label="Stone wt" value={has(item.stoneWt) ? wt(item.stoneWt) : null} />
-                    <Kv label="Stone wastage" value={has(item.stoneWastage) ? wt(item.stoneWastage) : null} />
-                    <Kv label="Total wt" value={lineWt > 0 ? lineWt.toFixed(3) : null} />
                     <Kv label="Stone cost" value={has(item.stoneCost) ? rupees(item.stoneCost) : null} />
                     <Kv label="1 gram rate" value={has(item.gramRate) ? rupees(item.gramRate) : null} />
                     <Kv label="Gold amount" value={has(item.gramRate) ? rupees(goldRateAmt(partsOf(item))) : null} />
@@ -251,19 +273,15 @@ export const FinishedShareCard: React.FC<{
                 );
               })}
 
-              <div className="gold-share-totals">
-                {has(totals.finishing) ? <div><span>Finishing wt</span><b>{wt(totals.finishing)} g</b></div> : null}
-                {has(totals.wastage) ? <div><span>Wastage wt</span><b>{wt(totals.wastage, 2)} g</b></div> : null}
-                {has(totals.stone) ? <div><span>Stone wt</span><b>{wt(totals.stone)} g</b></div> : null}
-                {has(totals.stoneWastage) ? <div><span>Stone wastage</span><b>{wt(totals.stoneWastage)} g</b></div> : null}
-                {totals.total > 0 ? <div className="gold-share-total"><span>Total wt</span><b>{totals.total.toFixed(3)} g</b></div> : null}
-                {totals.amount > 0 ? <div className="gold-share-total gold-share-money"><span>Total amount</span><b>{rupees(totals.amount)}</b></div> : null}
-                {has(totals.paid) ? <div><span>Collected wt</span><b>{wt(totals.paid)} g</b></div> : null}
+              <div className="gold-share-totals gold-share-steps">
+                <Step label="Total wt" value={totals.total > 0 ? `${totals.total.toFixed(3)} g` : null} tone="total" />
+                <Step label="Total amount" value={totals.amount > 0 ? rupees(totals.amount) : null} tone="total" />
+                <Step label="Collected wt" value={has(totals.paid) ? `${wt(totals.paid)} g` : `${wt(0)} g`} />
                 {totals.advance > 0.0005 ? (
-                  <div className="ok"><span>Advance</span><b>{wt(totals.advance)} g</b></div>
-                ) : totals.due > 0.0005 ? (
-                  <div className="due"><span>Balance</span><b>{wt(totals.due)} g</b></div>
-                ) : null}
+                  <Step label="Advance wt" value={`${wt(totals.advance)} g`} tone="plus" />
+                ) : (
+                  <Step label="Balance wt" value={`${wt(totals.due)} g`} tone={totals.due > 0.0005 ? 'minus' : 'plus'} />
+                )}
               </div>
               <div className="gold-share-thanks">Thank you for choosing {shop}</div>
             </div>

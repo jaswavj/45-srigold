@@ -1,12 +1,21 @@
-/** Wastage = finishing wt × percentage / 99.5 */
+/** Fine conversion uses 99.5.
+ *  Net wt = finishing − stone wt + stone wastage
+ *  Step 1: net × (purity + percentage) / 99.5
+ *  Step 2: minus net × purity / 99.5
+ */
 export const FINE_DIVISOR = 99.5;
 
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 export const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1000) / 1000;
 
-export const calcWastageWt = (finishing: number, percent: number) => {
-  if (!(finishing > 0) || !(percent > 0)) return 0;
-  return Math.max(0, round2((finishing * percent) / FINE_DIVISOR));
+export const calcWastageWt = (finishing: number, percent: number, purity = 0, stoneWt = 0, stoneWastage = 0) => {
+  if (!(percent > 0)) return 0;
+  const base = (Number(finishing) || 0) - (Number(stoneWt) || 0) + (Number(stoneWastage) || 0);
+  if (!(base > 0)) return 0;
+  const pur = Number(purity) > 0 ? Number(purity) : 0;
+  const first = (base * (pur + percent)) / FINE_DIVISOR;
+  const second = (base * pur) / FINE_DIVISOR;
+  return Math.max(0, round2(first - second));
 };
 
 /** finishing + wastage − stone wt + stone wastage wt */

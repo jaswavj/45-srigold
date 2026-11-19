@@ -194,23 +194,21 @@ const BillingListPage: React.FC = () => {
 
   const RowActs: React.FC<{ row: ListRow }> = ({ row }) => (
     <div className="gold-list-acts">
-      {filter === 'finished' && (
-        <button
-          className="gold-list-icon gold-list-icon-wa"
-          type="button"
-          title="WhatsApp / JPEG"
-          aria-label="WhatsApp"
-          onClick={() => {
-            if (!row.billDisplay) {
-              toast.error('Bill number missing');
-              return;
-            }
-            setShareBillNo(row.billDisplay);
-          }}
-        >
-          <i className="fab fa-whatsapp" />
-        </button>
-      )}
+      <button
+        className="gold-list-icon gold-list-icon-wa"
+        type="button"
+        title="WhatsApp / JPEG"
+        aria-label="WhatsApp"
+        onClick={() => {
+          if (!row.billDisplay) {
+            toast.error('Bill number missing');
+            return;
+          }
+          setShareBillNo(row.billDisplay);
+        }}
+      >
+        <i className="fab fa-whatsapp" />
+      </button>
       <button className="gold-list-icon gold-list-icon-edit" type="button" title="Edit" aria-label="Edit" onClick={() => editBill(row)}>
         <i className="fas fa-pen" />
       </button>

@@ -106,11 +106,20 @@ const parseWt = (v: string) => {
 const missingLineWt = (line: Pick<Line, 'price' | 'metalWt'>) =>
   !(Number(line.price) > 0) && !(Number(line.metalWt) > 0);
 
-const wastageFromPercent = (finishingRaw: string, percentRaw: string) => {
+const wastageFromPercent = (
+  finishingRaw: string,
+  percentRaw: string,
+  purityRaw = '',
+  stoneRaw = '',
+  stoneWastageRaw = '',
+) => {
   const fin = parseWt(finishingRaw);
   const pct = parseWt(percentRaw);
+  const pur = parseWt(purityRaw);
+  const stone = parseWt(stoneRaw);
+  const stoneW = parseWt(stoneWastageRaw);
   if (!(fin > 0) || !(pct > 0)) return '';
-  return wastage(calcWastageWt(fin, pct));
+  return wastage(calcWastageWt(fin, pct, pur, stone, stoneW));
 };
 
 const CafeItemIcon: React.FC = () => (
@@ -1817,7 +1826,36 @@ const BillingPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="pos-fg gold-item-imgs">
+              <div className="pos-fg gold-item-amt">
+                <span className="pos-lbl">Finishing wt</span>
+                <input
+                  ref={finishingRef}
+                  className="pos-inp"
+                  value={price}
+                  placeholder="0.000"
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const had = parseWt(price) > 0;
+                    setPrice(value);
+                    if (!(parseWt(value) > 0)) {
+                      setDraftPurity('');
+                      setDraftMetalWt('');
+                      return;
+                    }
+                    const nextPurity = draftPurity.trim() ? draftPurity : (!had ? '92' : draftPurity);
+                    if (!had) setDraftPurity((cur) => (cur.trim() ? cur : '92'));
+                    setDraftMetalWt(wastageFromPercent(value, draftPercent, nextPurity, draftStoneWt, draftStoneWastage));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    stoneWtRef.current?.focus();
+                    stoneWtRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-imgs gold-span-2">
                 <span className="pos-lbl">Photos</span>
                 <div className="pos-img-slots">
                   <ImageSlot
@@ -1840,91 +1878,6 @@ const BillingPage: React.FC = () => {
             <section className="gold-sec">
             <h3>Weight</h3>
             <div className="gold-grid-2">
-              <div className="pos-fg gold-item-amt">
-                <span className="pos-lbl">Finishing wt</span>
-                <input
-                  ref={finishingRef}
-                  className="pos-inp"
-                  value={price}
-                  placeholder="0.000"
-                  inputMode="decimal"
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    const had = parseWt(price) > 0;
-                    setPrice(value);
-                    if (!(parseWt(value) > 0)) {
-                      setDraftPurity('');
-                      setDraftMetalWt('');
-                      return;
-                    }
-                    if (!had) setDraftPurity((cur) => (cur.trim() ? cur : '92'));
-                    setDraftMetalWt(wastageFromPercent(value, draftPercent));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
-                    e.preventDefault();
-                    purityRef.current?.focus();
-                    purityRef.current?.select();
-                  }}
-                />
-              </div>
-              <div className="pos-fg gold-item-purity">
-                <span className="pos-lbl">Purity</span>
-                <input
-                  ref={purityRef}
-                  className="pos-inp"
-                  value={draftPurity}
-                  placeholder="92"
-                  inputMode="decimal"
-                  onChange={(e) => setDraftPurity(e.target.value)}
-                  onBlur={() => {
-                    if (parseWt(price) > 0 && !draftPurity.trim()) setDraftPurity('92');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
-                    e.preventDefault();
-                    percentRef.current?.focus();
-                    percentRef.current?.select();
-                  }}
-                />
-              </div>
-              <div className="pos-fg gold-item-percent">
-                <span className="pos-lbl">Percentage</span>
-                <input
-                  ref={percentRef}
-                  className="pos-inp"
-                  value={draftPercent}
-                  placeholder="6"
-                  inputMode="decimal"
-                  onChange={(e) => {
-                    setDraftPercent(e.target.value);
-                    setDraftMetalWt(wastageFromPercent(price, e.target.value));
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
-                    e.preventDefault();
-                    stoneWtRef.current?.focus();
-                    stoneWtRef.current?.select();
-                  }}
-                />
-              </div>
-              <div className="pos-fg gold-item-wt">
-                <span className="pos-lbl">Wastage wt <em>auto</em></span>
-                <input
-                  ref={metalWtRef}
-                  className="pos-inp pos-inp-muted"
-                  value={draftMetalWt}
-                  placeholder="0.00"
-                  readOnly
-                  tabIndex={-1}
-                />
-              </div>
-            </div>
-            </section>
-
-            <section className="gold-sec">
-            <h3>Stone</h3>
-            <div className="gold-grid-2">
               <div className="pos-fg gold-item-stone">
                 <span className="pos-lbl">Stone wt</span>
                 <input
@@ -1937,6 +1890,7 @@ const BillingPage: React.FC = () => {
                     const value = e.target.value;
                     setDraftStoneWt(value);
                     if (!(parseWt(value) > 0)) setDraftStoneCost('');
+                    setDraftMetalWt(wastageFromPercent(price, draftPercent, draftPurity, value, draftStoneWastage));
                   }}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter' && e.key !== 'Tab') return;
@@ -1954,11 +1908,15 @@ const BillingPage: React.FC = () => {
                   value={draftStoneWastage}
                   placeholder="0.000"
                   inputMode="decimal"
-                  onChange={(e) => setDraftStoneWastage(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDraftStoneWastage(value);
+                    setDraftMetalWt(wastageFromPercent(price, draftPercent, draftPurity, draftStoneWt, value));
+                  }}
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter' && e.key !== 'Tab') return;
                     e.preventDefault();
-                    const next = parseWt(draftStoneWt) > 0 ? stoneCostRef.current : gramRateRef.current;
+                    const next = parseWt(draftStoneWt) > 0 ? stoneCostRef.current : purityRef.current;
                     next?.focus();
                     next?.select();
                   }}
@@ -1979,9 +1937,67 @@ const BillingPage: React.FC = () => {
                   onKeyDown={(e) => {
                     if (e.key !== 'Enter' && e.key !== 'Tab') return;
                     e.preventDefault();
+                    purityRef.current?.focus();
+                    purityRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-purity">
+                <span className="pos-lbl">Purity</span>
+                <input
+                  ref={purityRef}
+                  className="pos-inp"
+                  value={draftPurity}
+                  placeholder="92"
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setDraftPurity(value);
+                    setDraftMetalWt(wastageFromPercent(price, draftPercent, value, draftStoneWt, draftStoneWastage));
+                  }}
+                  onBlur={() => {
+                    if (parseWt(price) > 0 && !draftPurity.trim()) {
+                      setDraftPurity('92');
+                      setDraftMetalWt(wastageFromPercent(price, draftPercent, '92', draftStoneWt, draftStoneWastage));
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
+                    percentRef.current?.focus();
+                    percentRef.current?.select();
+                  }}
+                />
+              </div>
+              <div className="pos-fg gold-item-percent">
+                <span className="pos-lbl">Percentage</span>
+                <input
+                  ref={percentRef}
+                  className="pos-inp"
+                  value={draftPercent}
+                  placeholder="6"
+                  inputMode="decimal"
+                  onChange={(e) => {
+                    setDraftPercent(e.target.value);
+                    setDraftMetalWt(wastageFromPercent(price, e.target.value, draftPurity, draftStoneWt, draftStoneWastage));
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter' && e.key !== 'Tab') return;
+                    e.preventDefault();
                     gramRateRef.current?.focus();
                     gramRateRef.current?.select();
                   }}
+                />
+              </div>
+              <div className="pos-fg gold-item-wt gold-span-2">
+                <span className="pos-lbl">Wastage wt <em>auto</em></span>
+                <input
+                  ref={metalWtRef}
+                  className="pos-inp pos-inp-muted"
+                  value={draftMetalWt}
+                  placeholder="0.00"
+                  readOnly
+                  tabIndex={-1}
                 />
               </div>
             </div>
