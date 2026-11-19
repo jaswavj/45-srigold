@@ -39,6 +39,10 @@ type ListRow = {
 type ListFilter = 'all' | 'unfinished' | 'finished';
 
 const today = () => new Date().toISOString().slice(0, 10);
+const monthStart = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
 const api = new BillingApiService();
 const wt = (n?: number | null, digits = 3) => {
   const v = Number(n);
@@ -98,7 +102,7 @@ const Photo: React.FC<{ fileName?: string; onOpen?: () => void }> = ({ fileName,
 
 const BillingListPage: React.FC = () => {
   const navigate = useNavigate();
-  const [from, setFrom] = useState(today);
+  const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(today);
   const [filter, setFilter] = useState<ListFilter>('all');
   const [search, setSearch] = useState('');
@@ -143,7 +147,7 @@ const BillingListPage: React.FC = () => {
   }, [from, to, filter]);
 
   useEffect(() => {
-    void load(today(), today());
+    void load(monthStart(), today());
   }, []);
 
   useEffect(() => {
