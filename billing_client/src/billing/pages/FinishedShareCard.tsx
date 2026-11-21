@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../api/billing/billing-api-service';
 import logo from '../../assets/images/logo.png';
-import { goldAmount, goldRateAmt, goldTotalWt, GoldParts, round2 } from '../utils/goldCalc';
+import { FINE_DIVISOR, goldAmount, goldRateAmt, goldTotalWt, GoldParts, round2 } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import { downloadElementJpeg } from '../utils/downloadJpeg';
 import './FinishedShareCard.css';
@@ -260,7 +260,10 @@ export const FinishedShareCard: React.FC<{
                     <Step label="Final wt" value={finishing > 0 ? `${finalWt.toFixed(2)} g` : null} tone="final" />
                     <Step label="Purity" value={has(item.purity) ? String(item.purity) : null} />
                     <Step label="Percentage" value={has(item.wastagePer) ? String(item.wastagePer) : null} />
-                    <Step label="Wastage wt" value={has(item.metalWt) ? `${wt(item.metalWt, 2)} g` : null} tone="wastage" />
+                    <Step
+                      label={`/99.5`}
+                      value={(has(item.purity) || has(item.wastagePer) || lineWt > 0) ? String(FINE_DIVISOR) : null}
+                    />
                     <Step label="Total wt" value={lineWt > 0 ? `${lineWt.toFixed(2)} g` : null} tone="total" />
                   </div>
                   <div className="gold-share-kvs">

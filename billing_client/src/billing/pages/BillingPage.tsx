@@ -2037,8 +2037,8 @@ const BillingPage: React.FC = () => {
                     chargeAmtRef.current?.focus();
                     chargeAmtRef.current?.select();
                   }}
-                />
-              </div>
+                  />
+                </div>
               <div className="pos-fg gold-item-type-cost">
                 <span className="pos-lbl">Type cost</span>
                 <input
