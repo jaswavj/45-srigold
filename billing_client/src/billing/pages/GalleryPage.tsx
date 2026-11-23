@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { BillingApiService } from '../../api/billing/billing-api-service';
+import { routerPathNames } from '../../routes/routerPathNames';
 import { goldAmount, goldTotalWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import './master/Master.css';
@@ -41,6 +43,7 @@ const wt = (n?: number | null, digits = 3) => {
 const api = new BillingApiService();
 
 const GalleryPage: React.FC = () => {
+  const navigate = useNavigate();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [item, setItem] = useState('');
   const [search, setSearch] = useState('');
@@ -231,7 +234,24 @@ const GalleryPage: React.FC = () => {
 
       {viewShot && viewIndex != null && (
         <div className="gal-view-back" onClick={() => setViewIndex(null)}>
-          <button className="gal-view-close" type="button" onClick={() => setViewIndex(null)}>Close</button>
+          <div className="gal-view-acts" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="gal-view-edit"
+              type="button"
+              onClick={() => {
+                const no = viewShot.photo.billDisplay;
+                setViewIndex(null);
+                if (!no) {
+                  toast.error('Bill number missing');
+                  return;
+                }
+                navigate(`${routerPathNames.billing}?edit=${encodeURIComponent(no)}`);
+              }}
+            >
+              Edit
+            </button>
+            <button className="gal-view-close" type="button" onClick={() => setViewIndex(null)}>Close</button>
+          </div>
           {shots.length > 1 && (
             <>
               <button

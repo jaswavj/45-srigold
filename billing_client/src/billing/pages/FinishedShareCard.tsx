@@ -10,6 +10,7 @@ import './FinishedShareCard.css';
 type ShareItem = {
   name: string;
   itemSize?: string;
+  itemDetails?: string;
   purity?: number;
   wastagePer?: number;
   price?: number;
@@ -24,6 +25,11 @@ type ShareItem = {
   image2?: string;
 };
 
+type OldDue = {
+  itemName?: string;
+  balance?: number;
+};
+
 type ShareBill = {
   billDisplay?: string;
   date?: string;
@@ -36,6 +42,7 @@ type ShareBill = {
   paid?: number;
   balance?: number;
   items?: ShareItem[];
+  oldDues?: OldDue[];
 };
 
 const wt = (n?: number | null, digits = 3) => {
@@ -77,7 +84,7 @@ const Kv: React.FC<{ label: string; value?: React.ReactNode; wide?: boolean }> =
 const Step: React.FC<{
   label: string;
   value?: React.ReactNode;
-  tone?: 'minus' | 'plus' | 'final' | 'wastage' | 'total';
+  tone?: 'minus' | 'plus' | 'final' | 'wastage' | 'total' | 'fine';
 }> = ({ label, value, tone }) => {
   if (value == null || value === '') return null;
   return (
@@ -148,6 +155,9 @@ export const FinishedShareCard: React.FC<{
     const total = items.reduce((s, item) => s + goldTotalWt(partsOf(item)), 0);
     const paid = Number(bill?.paid) || 0;
     const payable = Number(bill?.payable) || total;
+    const due = Math.max(0, payable - paid);
+    const oldDues = (bill?.oldDues || []).filter((row) => Number(row.balance) > 0.0005);
+    const oldDue = oldDues.reduce((s, row) => s + (Number(row.balance) || 0), 0);
     return {
       finishing,
       wastage: wastageSum,
@@ -159,8 +169,11 @@ export const FinishedShareCard: React.FC<{
       typeCost,
       amount,
       paid,
-      due: Math.max(0, payable - paid),
+      due,
       advance: Math.max(0, paid - payable),
+      oldDues,
+      oldDue,
+      finalBalance: due + oldDue,
     };
   }, [bill]);
 
@@ -213,7 +226,6 @@ export const FinishedShareCard: React.FC<{
                 </div>
                 <div className="gold-share-title">Job Work Statement</div>
                 <div className="gold-share-meta">
-                  <div><span>Bill No</span><b>{bill.billDisplay || billNo}</b></div>
                   <div><span>Date</span><b>{fmtDate(bill.date)}{bill.time ? ` · ${fmtTime(bill.time)}` : ''}</b></div>
                 </div>
               </header>
@@ -233,19 +245,26 @@ export const FinishedShareCard: React.FC<{
                 const finalWt = round2(finishing - (Number(item.stoneWt) || 0) + (Number(item.stoneWastage) || 0));
                 return (
                 <div key={`${item.name}-${i}`} className="gold-share-body">
-                  {(item.image1 || item.image2) ? (
-                    <div className="gold-share-photos">
-                      {item.image1 ? (
-                        <div className="gold-share-photo">
-                          <img src={sriImageUrl(item.image1)} alt="" />
-                          <em>Image 1</em>
+                  {(item.image1 || item.image2 || (item.itemDetails || '').trim()) ? (
+                    <div className="gold-share-media">
+                      {(item.image1 || item.image2) ? (
+                        <div className="gold-share-photos">
+                          {item.image1 ? (
+                            <div className="gold-share-photo">
+                              <img src={sriImageUrl(item.image1)} alt="" />
+                              <em>Image 1</em>
+                            </div>
+                          ) : null}
+                          {item.image2 ? (
+                            <div className="gold-share-photo">
+                              <img src={sriImageUrl(item.image2)} alt="" />
+                              <em>Image 2</em>
+                            </div>
+                          ) : null}
                         </div>
                       ) : null}
-                      {item.image2 ? (
-                        <div className="gold-share-photo">
-                          <img src={sriImageUrl(item.image2)} alt="" />
-                          <em>Image 2</em>
-                        </div>
+                      {(item.itemDetails || '').trim() ? (
+                        <div className="gold-share-details">{(item.itemDetails || '').trim()}</div>
                       ) : null}
                     </div>
                   ) : null}
@@ -261,8 +280,9 @@ export const FinishedShareCard: React.FC<{
                     <Step label="Purity" value={has(item.purity) ? String(item.purity) : null} />
                     <Step label="Percentage" value={has(item.wastagePer) ? String(item.wastagePer) : null} />
                     <Step
-                      label={`/99.5`}
+                      label="/99.5"
                       value={(has(item.purity) || has(item.wastagePer) || lineWt > 0) ? String(FINE_DIVISOR) : null}
+                      tone="fine"
                     />
                     <Step label="Total wt" value={lineWt > 0 ? `${lineWt.toFixed(2)} g` : null} tone="total" />
                   </div>
@@ -286,6 +306,17 @@ export const FinishedShareCard: React.FC<{
                 ) : (
                   <Step label="Balance wt" value={`${wt(totals.due)} g`} tone={totals.due > 0.0005 ? 'minus' : 'plus'} />
                 )}
+                {totals.oldDues.map((row, i) => (
+                  <Step
+                    key={`${row.itemName || 'old'}-${i}`}
+                    label={row.itemName || 'Old bill'}
+                    value={`${wt(row.balance)} g`}
+                    tone="minus"
+                  />
+                ))}
+                {totals.oldDue > 0.0005 ? (
+                  <Step label="Final balance" value={`${wt(totals.finalBalance)} g`} tone="total" />
+                ) : null}
               </div>
               <div className="gold-share-thanks">Thank you for choosing {shop}</div>
             </div>

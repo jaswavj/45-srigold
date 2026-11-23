@@ -238,25 +238,27 @@ public class BillingWriteService {
         int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
         double cost = productCost(line.getId(), line.getBatchId());
         jdbcTemplate.update(
-                "INSERT INTO prod_bill_details (bill_id, prod_id, qty, price, disc, total, gst, cost, commission, image1, image2, metal_wt, item_size, purity, wastage_per, stone_wt, stone_wastage, stone_cost, gram_rate, charge_type, charge_amt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO prod_bill_details (bill_id, prod_id, qty, price, disc, total, gst, cost, commission, image1, image2, metal_wt, item_size, purity, wastage_per, stone_wt, stone_wastage, stone_cost, gram_rate, charge_type, charge_amt, item_details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 billId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()),
                 nz(line.getTotal()), gst, cost, nz(line.getCommission()),
                 imageNameOrNull(line.getImage1()), imageNameOrNull(line.getImage2()), nz(line.getMetalWt()),
                 blankToNull(line.getItemSize()), nz(line.getPurity()), nz(line.getWastagePer()),
                 nz(line.getStoneWt()), nz(line.getStoneWastage()), nz(line.getStoneCost()),
-                nz(line.getGramRate()), blankToNull(line.getChargeType()), nz(line.getChargeAmt())
+                nz(line.getGramRate()), blankToNull(line.getChargeType()), nz(line.getChargeAmt()),
+                blankToNull(line.getItemDetails())
         );
     }
 
     private void insertHoldDetail(long quotId, BillLineRequest line, int isTaxBill) {
         int gst = isTaxBill == 1 ? productGst(line.getId()) : 0;
         jdbcTemplate.update(
-                "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled, image1, image2, metal_wt, item_size, purity, wastage_per, stone_wt, stone_wastage, stone_cost, gram_rate, charge_type, charge_amt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO prod_quotation_details (quot_id, prod_id, qty, price, disc, total, gst, is_cancelled, image1, image2, metal_wt, item_size, purity, wastage_per, stone_wt, stone_wastage, stone_cost, gram_rate, charge_type, charge_amt, item_details) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 quotId, line.getId(), line.getQty(), line.getPrice(), nz(line.getDiscount()), nz(line.getTotal()), gst,
                 imageNameOrNull(line.getImage1()), imageNameOrNull(line.getImage2()), nz(line.getMetalWt()),
                 blankToNull(line.getItemSize()), nz(line.getPurity()), nz(line.getWastagePer()),
                 nz(line.getStoneWt()), nz(line.getStoneWastage()), nz(line.getStoneCost()),
-                nz(line.getGramRate()), blankToNull(line.getChargeType()), nz(line.getChargeAmt())
+                nz(line.getGramRate()), blankToNull(line.getChargeType()), nz(line.getChargeAmt()),
+                blankToNull(line.getItemDetails())
         );
     }
 

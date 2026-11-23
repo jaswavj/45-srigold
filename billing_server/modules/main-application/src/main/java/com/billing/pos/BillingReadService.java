@@ -36,7 +36,7 @@ public class BillingReadService {
             "IFNULL(d.wastage_per, 0) AS wastage_per, IFNULL(d.stone_wt, 0) AS stone_wt, " +
             "IFNULL(d.stone_wastage, 0) AS stone_wastage, IFNULL(d.stone_cost, 0) AS stone_cost, " +
             "IFNULL(d.gram_rate, 0) AS gram_rate, IFNULL(d.charge_type, '') AS charge_type, " +
-            "IFNULL(d.charge_amt, 0) AS charge_amt";
+            "IFNULL(d.charge_amt, 0) AS charge_amt, IFNULL(d.item_details, '') AS item_details";
 
     private final JdbcTemplate jdbcTemplate;
     private volatile boolean quotationFlagsReady;
@@ -87,6 +87,7 @@ public class BillingReadService {
         addTableColumn(table, "gram_rate", "DOUBLE(12,2) NOT NULL DEFAULT 0.00");
         addTableColumn(table, "charge_type", "VARCHAR(80) NULL");
         addTableColumn(table, "charge_amt", "DOUBLE(12,2) NOT NULL DEFAULT 0.00");
+        addTableColumn(table, "item_details", "TEXT NULL");
     }
 
     private void addTableColumn(String table, String name, String definition) {
@@ -627,6 +628,7 @@ public class BillingReadService {
         List<PrintBillData> headers = jdbcTemplate.query(
                 "SELECT b.id, b.bill_display, b.cusName, b.cusPhn, b.DATE, b.TIME, b.total, b.prodDisc, b.extraDisc, " +
                         "IFNULL(b.exchPoint, 0) AS exchPoint, b.payable, b.paid, b.balance, b.paymentMode, b.paymentType, b.is_tax_bill, " +
+                        "IFNULL(b.customerId, 0) AS customerId, " +
                         "c.name AS cust_name, c.phone_number, c.address, c.gstin " +
                         "FROM prod_bill b LEFT JOIN customers c ON c.id = b.customerId " +
                         "WHERE b.bill_display = ? AND b.is_cancelled = 0",
@@ -652,6 +654,7 @@ public class BillingReadService {
                     data.setPaymentMode(rs.getInt("paymentMode"));
                     data.setPaymentType(rs.getInt("paymentType"));
                     data.setIsTaxBill(rs.getInt("is_tax_bill"));
+                    data.setCustomerId(rs.getLong("customerId"));
                     return data;
                 },
                 billNo
@@ -706,6 +709,7 @@ public class BillingReadService {
             bill.setReturned(bill.getItems().stream().anyMatch(l -> l.getIsExchanged() != null && l.getIsExchanged() == 2));
         }
         attachPayments(bill);
+        attachOldDues(bill);
         boolean taxBill = bill.getIsTaxBill() != null && bill.getIsTaxBill() == 1;
         bill.setDocTitle(taxBill ? "Tax Invoice" : "");
         bill.setDocNoLabel("Invoice No.");
@@ -836,6 +840,42 @@ public class BillingReadService {
         bill.setPayments(rows);
     }
 
+    private void attachOldDues(PrintBillData bill) {
+        long customerId = bill.getCustomerId() == null ? 0 : bill.getCustomerId();
+        long billId = bill.getBillId() == null ? 0 : bill.getBillId();
+        if (customerId <= 0 || billId <= 0) {
+            return;
+        }
+        try {
+            bill.setOldDues(jdbcTemplate.query(
+                    "SELECT IFNULL(b.currentBalance, 0) AS due_wt, " +
+                            "(SELECT GROUP_CONCAT(p.name ORDER BY d.id SEPARATOR ', ') " +
+                            " FROM prod_bill_details d JOIN prod_product p ON p.id = d.prod_id " +
+                            " WHERE d.bill_id = b.id) AS item_name " +
+                            "FROM prod_bill b " +
+                            "WHERE IFNULL(b.customerId, 0) = ? AND b.id <> ? AND IFNULL(b.is_cancelled, 0) = 0 " +
+                            "AND IFNULL(b.currentBalance, 0) > 0.0005 " +
+                            "AND (b.date < ? OR (b.date = ? AND (b.time < ? OR (b.time = ? AND b.id < ?)))) " +
+                            "ORDER BY b.date, b.time, b.id",
+                    (rs, i) -> {
+                        PrintBillData.OldDueRow row = new PrintBillData.OldDueRow();
+                        row.setItemName(nz(rs.getString("item_name")));
+                        row.setBalance(rs.getDouble("due_wt"));
+                        return row;
+                    },
+                    customerId,
+                    billId,
+                    bill.getDate(),
+                    bill.getDate(),
+                    bill.getTime(),
+                    bill.getTime(),
+                    billId
+            ));
+        } catch (Exception ignored) {
+            bill.setOldDues(new ArrayList<>());
+        }
+    }
+
     private String payModeLabel(Integer mode) {
         if (mode == null) return "-";
         return switch (mode) {
@@ -921,6 +961,7 @@ public class BillingReadService {
         row.setGramRate(rs.getDouble("gram_rate"));
         row.setChargeType(nz(rs.getString("charge_type")));
         row.setChargeAmt(rs.getDouble("charge_amt"));
+        row.setItemDetails(nz(rs.getString("item_details")));
     }
 
     private void fillGold(PrintBillData.PrintLineData line, java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -931,6 +972,7 @@ public class BillingReadService {
         line.setGramRate(rs.getDouble("gram_rate"));
         line.setChargeType(nz(rs.getString("charge_type")));
         line.setChargeAmt(rs.getDouble("charge_amt"));
+        line.setItemDetails(nz(rs.getString("item_details")));
     }
 
     private String productLookupSql(String where) {

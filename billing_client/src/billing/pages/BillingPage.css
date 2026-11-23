@@ -655,9 +655,18 @@
 }
 
 .gold-item-purity,
-.gold-item-percent {
+.gold-item-percent,
+.gold-item-fine {
   flex: 0.7;
   min-width: 88px;
+}
+
+.gold-form .pos-area {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 9px;
+  line-height: 1.35;
+  resize: vertical;
 }
 
 .gold-item-stone,

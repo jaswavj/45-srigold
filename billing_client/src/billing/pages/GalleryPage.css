@@ -199,18 +199,33 @@
   opacity: 0.92;
 }
 
-.gal-view-close {
+.gal-view-acts {
   position: absolute;
   top: 16px;
   right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+
+.gal-view-edit,
+.gal-view-close {
   height: 40px;
   padding: 0 16px;
   border: 0;
   border-radius: 8px;
-  background: #fff;
-  color: #111827;
   font-weight: 800;
   cursor: pointer;
+}
+
+.gal-view-edit {
+  background: #c2410c;
+  color: #fff;
+}
+
+.gal-view-close {
+  background: #fff;
+  color: #111827;
 }
 
 .gal-view-nav {

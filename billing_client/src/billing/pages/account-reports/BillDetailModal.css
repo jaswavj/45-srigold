@@ -252,18 +252,34 @@
   background: #111;
 }
 
-.bill-view-close {
+.bill-view-acts {
   position: absolute;
   top: 16px;
   right: 16px;
+  display: flex;
+  gap: 8px;
+  z-index: 2;
+}
+
+.bill-view-edit,
+.bill-view-close {
+  position: static;
   height: 40px;
   padding: 0 16px;
   border: 0;
   border-radius: 8px;
-  background: #fff;
-  color: #111827;
   font-weight: 800;
   cursor: pointer;
+}
+
+.bill-view-edit {
+  background: #c2410c;
+  color: #fff;
+}
+
+.bill-view-close {
+  background: #fff;
+  color: #111827;
 }
 
 .bill-view-nav {

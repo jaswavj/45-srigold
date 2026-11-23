@@ -17,3 +17,7 @@ ALTER TABLE sri.prod_quotation_details ADD COLUMN stone_cost DOUBLE(12,2) NOT NU
 ALTER TABLE sri.prod_quotation_details ADD COLUMN gram_rate DOUBLE(12,2) NOT NULL DEFAULT 0.00;
 ALTER TABLE sri.prod_quotation_details ADD COLUMN charge_type VARCHAR(80) NULL;
 ALTER TABLE sri.prod_quotation_details ADD COLUMN charge_amt DOUBLE(12,2) NOT NULL DEFAULT 0.00;
+
+-- Details notes on each bill / hold line. Run once on cloud.
+ALTER TABLE sri.prod_bill_details ADD COLUMN item_details TEXT NULL;
+ALTER TABLE sri.prod_quotation_details ADD COLUMN item_details TEXT NULL;

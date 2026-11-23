@@ -6,7 +6,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -124,7 +123,7 @@ const ChartTip = ({ active, payload, label }: any) => {
       <div className="st-tip-d">{title}</div>
       {rows.map((p: any) => (
         <div key={p.dataKey} className="st-tip-row">
-          <i style={{ background: p.fill || p.color }} />
+          <i style={{ background: p.color || p.fill }} />
           <span>{p.name}</span>
           <b>₹ {n(p.value)}</b>
         </div>
@@ -132,6 +131,57 @@ const ChartTip = ({ active, payload, label }: any) => {
     </div>
   );
 };
+
+const DailyCandle: React.FC<{
+  title: string;
+  data: { date: string; label: string; day: string; sales: number; expense: number }[];
+  dataKey: 'sales' | 'expense';
+  name: string;
+  from: string;
+  to: string;
+  height: number;
+  barMax: number;
+  xTickInterval: number;
+}> = ({ title, data, dataKey, name, from, to, height, barMax, xTickInterval }) => (
+  <div className="mst-card st-chart-card">
+    <div className="mst-card-h">{title}</div>
+    <div className="mst-card-b st-chart-body">
+      {data.length === 0 ? (
+        <div className="mst-empty">No days in this month.</div>
+      ) : (
+        <div className="st-chart-fit" style={{ height }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }} barCategoryGap="18%">
+              <defs>
+                <linearGradient id={`${dataKey}Bar`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={from} />
+                  <stop offset="100%" stopColor={to} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+              <XAxis
+                dataKey="day"
+                tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                interval={xTickInterval}
+              />
+              <YAxis
+                tickFormatter={compact}
+                tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                width={34}
+              />
+              <Tooltip content={<ChartTip />} cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }} />
+              <Bar dataKey={dataKey} name={name} fill={`url(#${dataKey}Bar)`} radius={[4, 4, 0, 0]} maxBarSize={barMax} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  </div>
+);
 
 const PieTip = ({ active, payload }: any) => {
   if (!active || !payload?.length) return null;
@@ -211,6 +261,7 @@ const StatsDashboardPage: React.FC = () => {
     ].filter((s) => s.value > 0);
   }, [data]);
   const pieTotal = pieData.reduce((sum, s) => sum + s.value, 0);
+  const mixSlice = pieData[Math.min(pieIndex, Math.max(0, pieData.length - 1))];
   const chartDays = useMemo(() => daily.map((d) => ({
     ...d,
     label: String(d.date || ''),
@@ -218,7 +269,6 @@ const StatsDashboardPage: React.FC = () => {
   })), [daily]);
   const dayCount = chartDays.length;
   const chartH = narrow ? 188 : 228;
-  const pieH = narrow ? 168 : 200;
   const barMax = dayCount > 28 ? 7 : dayCount > 20 ? 9 : dayCount > 14 ? 12 : 16;
   const xTickInterval = dayCount > 24 ? 2 : dayCount > 16 ? 1 : 0;
 
@@ -278,98 +328,87 @@ const StatsDashboardPage: React.FC = () => {
           </div>
           <div className="mst-note st-today">Today: ₹ {n(data.todaySales)} across {data.todayBills} bills · Showing {data.label}</div>
           <div className="st-charts">
-            <div className="mst-card st-chart-card">
-              <div className="mst-card-h">Daily Income vs Expense — {data.label}</div>
-              <div className="mst-card-b st-chart-body">
-                {chartDays.length === 0 ? (
-                  <div className="mst-empty">No days in this month.</div>
-                ) : (
-                  <div className="st-chart-fit" style={{ height: chartH }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={chartDays}
-                        margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
-                        barGap={1}
-                        barCategoryGap={dayCount > 24 ? '6%' : dayCount > 16 ? '10%' : '16%'}
-                      >
-                        <defs>
-                          <linearGradient id="salesBar" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#60a5fa" />
-                            <stop offset="100%" stopColor={SALES} />
-                          </linearGradient>
-                          <linearGradient id="expenseBar" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#c4b5fd" />
-                            <stop offset="100%" stopColor={EXPENSE} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
-                        <XAxis
-                          dataKey="day"
-                          tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
-                          axisLine={false}
-                          tickLine={false}
-                          interval={xTickInterval}
-                        />
-                        <YAxis
-                          tickFormatter={compact}
-                          tick={{ fill: 'var(--color-text-muted)', fontSize: 10 }}
-                          axisLine={false}
-                          tickLine={false}
-                          width={34}
-                        />
-                        <Tooltip content={<ChartTip />} cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }} />
-                        <Legend
-                          verticalAlign="bottom"
-                          height={22}
-                          wrapperStyle={{ fontSize: 11, paddingTop: 2 }}
-                        />
-                        <Bar dataKey="sales" name="Income" fill="url(#salesBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
-                        <Bar dataKey="expense" name="Expense" fill="url(#expenseBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="mst-card st-chart-card">
+            <DailyCandle
+              title={`Daily Income — ${data.label}`}
+              data={chartDays}
+              dataKey="sales"
+              name="Income"
+              from="#60a5fa"
+              to={SALES}
+              height={chartH}
+              barMax={barMax}
+              xTickInterval={xTickInterval}
+            />
+            <DailyCandle
+              title={`Daily Expense — ${data.label}`}
+              data={chartDays}
+              dataKey="expense"
+              name="Expense"
+              from="#c4b5fd"
+              to={EXPENSE}
+              height={chartH}
+              barMax={barMax}
+              xTickInterval={xTickInterval}
+            />
+            <div className="mst-card st-chart-card st-chart-mix">
               <div className="mst-card-h">Month Mix — {data.label}</div>
-              <div className="mst-card-b st-chart-body st-pie-wrap">
+              <div className="mst-card-b st-chart-body">
                 {pieTotal <= 0 ? (
                   <div className="mst-empty">No income or expense in this month.</div>
                 ) : (
-                  <>
-                    <ResponsiveContainer width="100%" height={pieH}>
-                      <PieChart>
-                        <Pie
-                          data={pieData}
-                          dataKey="value"
-                          nameKey="name"
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={narrow ? 48 : 58}
-                          outerRadius={narrow ? 74 : 88}
-                          paddingAngle={3}
-                          onMouseEnter={(_, i) => setPieIndex(i)}
-                          onClick={(_, i) => setPieIndex(i)}
-                        >
-                          {pieData.map((s, i) => (
-                            <Cell key={s.name} fill={s.color} stroke="var(--color-bg-surface)" strokeWidth={pieIndex === i ? 3 : 2} />
-                          ))}
-                        </Pie>
-                        <Tooltip content={<PieTip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                    <div className="st-pie-legend">
+                  <div className="st-mix">
+                    <div className="st-mix-pie">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={pieData}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={58}
+                            outerRadius={84}
+                            paddingAngle={4}
+                            onMouseEnter={(_, i) => setPieIndex(i)}
+                            onClick={(_, i) => setPieIndex(i)}
+                          >
+                            {pieData.map((s, i) => (
+                              <Cell
+                                key={s.name}
+                                fill={s.color}
+                                stroke="var(--color-bg-surface)"
+                                strokeWidth={pieIndex === i ? 4 : 2}
+                              />
+                            ))}
+                          </Pie>
+                          <Tooltip content={<PieTip />} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      {mixSlice ? (
+                        <div className="st-mix-center">
+                          <span>{mixSlice.name}</span>
+                          <b>₹ {n(mixSlice.value)}</b>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="st-mix-stats">
                       {pieData.map((s, i) => (
-                        <button key={s.name} type="button" className={`st-pie-leg ${pieIndex === i ? 'on' : ''}`} onClick={() => setPieIndex(i)}>
-                          <i style={{ background: s.color }} />
-                          <span>{s.name}</span>
-                          <b>₹ {n(s.value)}</b>
-                          <em>{((s.value / pieTotal) * 100).toFixed(1)}%</em>
+                        <button
+                          key={s.name}
+                          type="button"
+                          className={`st-mix-stat${pieIndex === i ? ' on' : ''}`}
+                          onClick={() => setPieIndex(i)}
+                        >
+                          <span className="st-mix-k">
+                            <i style={{ background: s.color }} />
+                            {s.name}
+                          </span>
+                          <strong>₹ {n(s.value)}</strong>
+                          <em>{((s.value / pieTotal) * 100).toFixed(1)}% of month</em>
                         </button>
                       ))}
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             </div>

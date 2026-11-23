@@ -111,7 +111,7 @@ const BillingListPage: React.FC = () => {
   const [cancelRow, setCancelRow] = useState<ListRow | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
-  const [view, setView] = useState<{ urls: string[]; index: number } | null>(null);
+  const [view, setView] = useState<{ urls: string[]; index: number; billDisplay: string } | null>(null);
   const [shareBillNo, setShareBillNo] = useState<string | null>(null);
 
   const openPhoto = (row: ListRow, which: 1 | 2) => {
@@ -119,7 +119,7 @@ const BillingListPage: React.FC = () => {
     if (!files.length) return;
     const clicked = which === 1 ? row.image1 : row.image2;
     const index = Math.max(0, files.indexOf(clicked));
-    setView({ urls: files.map(sriImageUrl), index });
+    setView({ urls: files.map(sriImageUrl), index, billDisplay: row.billDisplay || '' });
   };
 
   const visible = useMemo(() => {
@@ -419,7 +419,24 @@ const BillingListPage: React.FC = () => {
 
       {view && (
         <div className="gold-list-view-back" onClick={() => setView(null)}>
-          <button className="gold-list-view-close" type="button" onClick={() => setView(null)}>Close</button>
+          <div className="gold-list-view-acts" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="gold-list-view-edit"
+              type="button"
+              onClick={() => {
+                const no = view.billDisplay;
+                setView(null);
+                if (!no) {
+                  toast.error('Bill number missing');
+                  return;
+                }
+                navigate(`${routerPathNames.billing}?edit=${encodeURIComponent(no)}`);
+              }}
+            >
+              Edit
+            </button>
+            <button className="gold-list-view-close" type="button" onClick={() => setView(null)}>Close</button>
+          </div>
           {view.urls.length > 1 && (
             <>
               <button

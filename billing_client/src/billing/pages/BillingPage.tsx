@@ -11,7 +11,7 @@ import { routerPathNames } from '../../routes/routerPathNames';
 import { RootState } from '../../state/store';
 import { A4Invoice } from './A4Invoice';
 import { compressImage } from '../utils/compressImage';
-import { calcTotalWt, calcWastageWt } from '../utils/goldCalc';
+import { FINE_DIVISOR, calcTotalWt, calcWastageWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import './BillingPage.css';
 
@@ -60,6 +60,7 @@ type Line = {
   gramRate: number;
   chargeType: string;
   chargeAmt: number;
+  itemDetails: string;
 };
 
 const blankGold = {
@@ -70,6 +71,7 @@ const blankGold = {
   gramRate: 0,
   chargeType: '',
   chargeAmt: 0,
+  itemDetails: '',
 };
 
 const goldFromSaved = (item: any) => ({
@@ -80,6 +82,7 @@ const goldFromSaved = (item: any) => ({
   gramRate: Number(item?.gramRate) || 0,
   chargeType: item?.chargeType || '',
   chargeAmt: Number(item?.chargeAmt) || 0,
+  itemDetails: item?.itemDetails || '',
 });
 
 const plainNum = (n: number) => (Number(n) > 0 ? String(Number(Number(n).toFixed(3))) : '');
@@ -223,6 +226,7 @@ const BillingPage: React.FC = () => {
   const [draftGramRate, setDraftGramRate] = useState('');
   const [draftChargeType, setDraftChargeType] = useState('');
   const [draftChargeAmt, setDraftChargeAmt] = useState('');
+  const [draftDetails, setDraftDetails] = useState('');
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const sizeRef = useRef<HTMLInputElement>(null);
@@ -367,6 +371,7 @@ const BillingPage: React.FC = () => {
         setDraftGramRate(moneyIn(first?.gramRate));
         setDraftChargeType(first?.chargeType || '');
         setDraftChargeAmt(moneyIn(first?.chargeAmt));
+        setDraftDetails(first?.itemDetails || '');
         setDraftImage1(first?.image1 || '');
         setDraftImage2(first?.image2 || '');
         const empty = (v?: string) => (!v || v === '-' ? '' : v);
@@ -766,6 +771,7 @@ const BillingPage: React.FC = () => {
     gramRate: parseWt(draftGramRate),
     chargeType: draftChargeType.trim(),
     chargeAmt: parseWt(draftChargeAmt),
+    itemDetails: draftDetails.trim(),
   });
 
   const addProduct = () => {
@@ -830,6 +836,7 @@ const BillingPage: React.FC = () => {
     setDraftGramRate('');
     setDraftChargeType('');
     setDraftChargeAmt('');
+    setDraftDetails('');
     setNameHits([]);
     searchRef.current?.focus();
   };
@@ -1018,6 +1025,7 @@ const BillingPage: React.FC = () => {
       gramRate: line.gramRate || 0,
       chargeType: (line.chargeType || '').trim(),
       chargeAmt: line.chargeAmt || 0,
+      itemDetails: (line.itemDetails || '').trim(),
     }];
   };
 
@@ -1506,6 +1514,7 @@ const BillingPage: React.FC = () => {
     setDraftGramRate('');
     setDraftChargeType('');
     setDraftChargeAmt('');
+    setDraftDetails('');
     setUploadingSlot(null);
     setSaving(false);
     setHolding(false);
@@ -1872,6 +1881,16 @@ const BillingPage: React.FC = () => {
                   />
                 </div>
               </div>
+              <div className="pos-fg gold-item-details gold-span-2">
+                <span className="pos-lbl">Details</span>
+                <textarea
+                  className="pos-inp pos-area"
+                  value={draftDetails}
+                  placeholder="Optional notes"
+                  rows={3}
+                  onChange={(e) => setDraftDetails(e.target.value)}
+                />
+              </div>
             </div>
             </section>
 
@@ -1989,7 +2008,16 @@ const BillingPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="pos-fg gold-item-wt gold-span-2">
+              <div className="pos-fg gold-item-fine">
+                <span className="pos-lbl">/99.5</span>
+                <input
+                  className="pos-inp pos-inp-muted"
+                  value={String(FINE_DIVISOR)}
+                  readOnly
+                  tabIndex={-1}
+                />
+              </div>
+              <div className="pos-fg gold-item-wt">
                 <span className="pos-lbl">Wastage wt <em>auto</em></span>
                 <input
                   ref={metalWtRef}

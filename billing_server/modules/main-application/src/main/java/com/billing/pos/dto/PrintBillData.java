@@ -38,8 +38,10 @@ public class PrintBillData {
     private String amountInWords;
     private String docTitle;
     private String docNoLabel;
+    private Long customerId;
     private List<PrintLineData> items = new ArrayList<>();
     private List<PrintPaymentRow> payments = new ArrayList<>();
+    private List<OldDueRow> oldDues = new ArrayList<>();
 
     @Data
     public static class PrintLineData {
@@ -66,6 +68,7 @@ public class PrintBillData {
         private Double gramRate;
         private String chargeType;
         private Double chargeAmt;
+        private String itemDetails;
     }
 
     @Data
@@ -74,6 +77,12 @@ public class PrintBillData {
         private String mode;
         private String method;
         private Double paid;
+        private Double balance;
+    }
+
+    @Data
+    public static class OldDueRow {
+        private String itemName;
         private Double balance;
     }
 }

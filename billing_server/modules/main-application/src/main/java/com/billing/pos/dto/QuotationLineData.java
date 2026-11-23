@@ -27,4 +27,5 @@ public class QuotationLineData {
     private Double gramRate;
     private String chargeType;
     private Double chargeAmt;
+    private String itemDetails;
 }

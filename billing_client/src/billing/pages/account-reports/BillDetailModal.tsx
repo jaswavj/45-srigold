@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
+import { routerPathNames } from '../../../routes/routerPathNames';
 import { goldAmount, goldRateAmt, goldTotalWt, GoldParts } from '../../utils/goldCalc';
 import { sriImageUrl } from '../../utils/sriImages';
 import './BillDetailModal.css';
@@ -72,6 +74,7 @@ const Photo: React.FC<{ fileName?: string; onOpen?: () => void }> = ({ fileName,
 type Props = { billNo: string; onClose: () => void };
 
 const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
+  const navigate = useNavigate();
   const [bill, setBill] = useState<Bill | null>(null);
   const [view, setView] = useState<{ urls: string[]; index: number } | null>(null);
 
@@ -197,7 +200,25 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
 
       {view && (
         <div className="bill-view-back" onClick={(e) => { e.stopPropagation(); setView(null); }}>
-          <button className="bill-view-close" type="button" onClick={() => setView(null)}>Close</button>
+          <div className="bill-view-acts" onClick={(e) => e.stopPropagation()}>
+            <button
+              className="bill-view-edit"
+              type="button"
+              onClick={() => {
+                const no = bill?.billDisplay || billNo;
+                setView(null);
+                onClose();
+                if (!no) {
+                  toast.error('Bill number missing');
+                  return;
+                }
+                navigate(`${routerPathNames.billing}?edit=${encodeURIComponent(no)}`);
+              }}
+            >
+              Edit
+            </button>
+            <button className="bill-view-close" type="button" onClick={() => setView(null)}>Close</button>
+          </div>
           {view.urls.length > 1 && (
             <>
               <button

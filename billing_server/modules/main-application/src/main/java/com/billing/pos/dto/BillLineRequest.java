@@ -24,4 +24,5 @@ public class BillLineRequest {
     private Double gramRate;
     private String chargeType;
     private Double chargeAmt;
+    private String itemDetails;
 }
