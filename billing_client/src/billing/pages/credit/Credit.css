@@ -320,6 +320,16 @@
   letter-spacing: 0;
 }
 
+.crd-adv-bal {
+  font-weight: 800;
+  color: #16a34a;
+}
+
+.crd-adv-bal.off {
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
 .crd-row-due td { background: #fff1f1; }
 .crd-row-return td { background: #faf5ff; }
 .crd-row-old td { background: #fff7ed; }

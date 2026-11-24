@@ -76,6 +76,13 @@ export const billingMenuConfig: MenuItemConfig[] = [
     url: routerPathNames.billingList,
   },
   {
+    id: 'customer-details',
+    name: 'Customer Details',
+    icon: 'fas fa-wallet',
+    moduleId: MENU_MODULE.customerDetails,
+    url: routerPathNames.credit.customerBalance,
+  },
+  {
     id: 'gallery',
     name: 'Gallery',
     icon: 'fas fa-images',
@@ -92,13 +99,6 @@ export const billingMenuConfig: MenuItemConfig[] = [
       { id: 'product', name: 'Product', url: routerPathNames.master.product, moduleId: MENU_MODULE.master, icon: 'fas fa-cube' },
       { id: 'customers', name: 'Customers', url: routerPathNames.master.customers, moduleId: MENU_MODULE.master, icon: 'fas fa-users' },
     ],
-  },
-  {
-    id: 'customer-details',
-    name: 'Customer Details',
-    icon: 'fas fa-wallet',
-    moduleId: MENU_MODULE.customerDetails,
-    url: routerPathNames.credit.customerBalance,
   },
   {
     id: 'admin',

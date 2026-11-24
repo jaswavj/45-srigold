@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../api/billing/billing-api-service';
 import { creditApi, creditData } from '../../api/credit/credit-api-service';
@@ -302,25 +302,139 @@ export const CollectionBillPicker: React.FC<{
   );
 };
 
+const CollectionCustomerPick: React.FC<{
+  onClose: () => void;
+  onSelect: (customer: CollectionCustomer) => void;
+}> = ({ onClose, onSelect }) => {
+  const [term, setTerm] = useState('');
+  const [hits, setHits] = useState<CollectionCustomer[]>([]);
+  const [open, setOpen] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current) window.clearTimeout(timer.current);
+  }, []);
+
+  const search = (value: string) => {
+    setTerm(value);
+    if (timer.current) window.clearTimeout(timer.current);
+    if (!value.trim()) {
+      setHits([]);
+      setOpen(false);
+      return;
+    }
+    timer.current = window.setTimeout(async () => {
+      try {
+        const q = value.trim();
+        const res: any = /^\d+$/.test(q)
+          ? await billingApi.searchCustomers(undefined, q)
+          : await billingApi.searchCustomers(q);
+        const raw = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+        const rows: CollectionCustomer[] = raw.map((row: any) => ({
+          id: Number(row.id) || 0,
+          name: row.name || '',
+          phone: row.phone || '',
+        })).filter((row: CollectionCustomer) => row.id > 0);
+        setHits(rows);
+        setOpen(true);
+      } catch {
+        toast.error('Could not search customers');
+      }
+    }, 280);
+  };
+
+  return (
+    <div className="gold-coll-back" onClick={onClose}>
+      <div className="gold-coll-panel gold-coll-pick mst-card" onClick={(e) => e.stopPropagation()}>
+        <div className="mst-card-h gold-coll-head">
+          <span>Select customer</span>
+          <button type="button" className="mst-btn" onClick={onClose}>Close</button>
+        </div>
+        <div className="mst-card-b gold-coll-body">
+          <div className="mst-fg gold-coll-pick-search">
+            <label>Customer</label>
+            <input
+              className="mst-inp"
+              value={term}
+              placeholder="Type name or phone number"
+              onChange={(e) => search(e.target.value)}
+              onFocus={() => hits.length && setOpen(true)}
+              autoFocus
+            />
+            {open && (
+              <ul className="gold-coll-drop">
+                {hits.length === 0 ? (
+                  <li className="muted">No customers found</li>
+                ) : hits.map((hit) => (
+                  <li key={hit.id} onClick={() => onSelect(hit)}>
+                    <strong>{hit.name}</strong>
+                    {hit.phone && hit.phone !== '-' ? <em>{hit.phone}</em> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="gold-coll-acts">
+            <button className="mst-btn" type="button" onClick={onClose}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CollectionBillButton: React.FC<{
-  customer: CollectionCustomer;
+  customer?: CollectionCustomer;
   className?: string;
 }> = ({ customer, className }) => {
+  const [pick, setPick] = useState(false);
+  const [chosen, setChosen] = useState<CollectionCustomer | null>(customer || null);
   const [open, setOpen] = useState(false);
   const [share, setShare] = useState<CollectionBill[] | null>(null);
+
+  const start = () => {
+    if (customer?.id) {
+      setChosen(customer);
+      setOpen(true);
+      return;
+    }
+    setChosen(null);
+    setPick(true);
+  };
+
+  const stop = () => {
+    setPick(false);
+    setOpen(false);
+    setChosen(null);
+    setShare(null);
+  };
+
   return (
     <>
-      <button className={className || 'mst-btn mst-btn-primary'} type="button" onClick={() => setOpen(true)}>
+      <button className={className || 'mst-btn mst-btn-primary'} type="button" onClick={start}>
         Collection bill
       </button>
-      {open ? (
-        <CollectionBillPicker
-          customer={customer}
-          onClose={() => setOpen(false)}
-          onProceed={(bills) => setShare(bills)}
+      {pick ? (
+        <CollectionCustomerPick
+          onClose={stop}
+          onSelect={(next) => {
+            setChosen(next);
+            setPick(false);
+            setOpen(true);
+          }}
         />
       ) : null}
-      {share ? <CollectionShareCard bills={share} onClose={() => setShare(null)} /> : null}
+      {open && chosen ? (
+        <CollectionBillPicker
+          customer={chosen}
+          onClose={stop}
+          onProceed={(bills) => {
+            setOpen(false);
+            setShare(bills);
+          }}
+        />
+      ) : null}
+      {share ? <CollectionShareCard bills={share} onClose={stop} /> : null}
     </>
   );
 };

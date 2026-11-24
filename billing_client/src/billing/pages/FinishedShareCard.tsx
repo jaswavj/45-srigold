@@ -305,10 +305,10 @@ export const FinishedShareCard: React.FC<{
               <div className="gold-share-totals gold-share-steps">
                 <Step label="Total wt" value={totals.total > 0 ? `${totals.total.toFixed(2)} g` : null} tone="total" />
                 <Step label="Total amount" value={totals.amount > 0 ? rupees(totals.amount) : null} tone="total" />
-                <Step label="Collected wt" value={has(totals.paid) ? `${wt(totals.paid)} g` : `${wt(0)} g`} />
-                {totals.usedAdv > 0.0005 ? (
-                  <Step label="Collected by advance" value={`${wt(totals.usedAdv)} g`} />
-                ) : null}
+                <Step
+                  label={totals.usedAdv > 0.0005 ? 'Collected wt (by advance)' : 'Collected wt'}
+                  value={has(totals.paid) ? `${wt(totals.paid)} g` : `${wt(0)} g`}
+                />
                 {totals.advance > 0.0005 ? (
                   <Step label="Advance wt" value={`${wt(totals.advance)} g`} tone="plus" />
                 ) : (

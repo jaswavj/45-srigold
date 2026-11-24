@@ -206,6 +206,17 @@
   color: #dc2626;
 }
 
+.gbd-by-adv {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #047857;
+}
+
 .gbd-paymix {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -398,4 +409,8 @@ html[data-theme="dark"] .gbd-item {
 
 html[data-theme="dark"] .gbd-totals .due strong {
   color: #fca5a5;
+}
+
+html[data-theme="dark"] .gbd-by-adv {
+  color: #6ee7b7;
 }

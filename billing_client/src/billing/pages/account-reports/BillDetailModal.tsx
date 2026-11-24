@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { billingApi } from '../../../api/billing/billing-api-service';
 import { routerPathNames } from '../../../routes/routerPathNames';
 import { goldAmount, goldRateAmt, goldTotalWt, GoldParts } from '../../utils/goldCalc';
+import { advanceUsedOf } from '../../utils/advanceCollect';
 import { sriImageUrl } from '../../utils/sriImages';
 import './BillDetailModal.css';
 
@@ -173,7 +174,10 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
               </div>
               <div>
                 <span>Collected wt</span>
-                <strong>{wt((bill.cashPaid || 0) + (bill.bankPaid || 0) || bill.paid) || '0.000'}</strong>
+                <strong>{wt(bill.paid) || '0.000'}</strong>
+                {advanceUsedOf(bill.paid, bill.cashPaid, bill.bankPaid) > 0.0005 ? (
+                  <em className="gbd-by-adv">by advance</em>
+                ) : null}
               </div>
               <div className={(bill.balance || 0) > 0.005 ? 'due' : ''}>
                 <span>Balance</span>
@@ -181,19 +185,48 @@ const BillDetailModal: React.FC<Props> = ({ billNo, onClose }) => {
               </div>
             </div>
 
-            {(bill.payments || []).length > 0 && (
+            {(() => {
+              const usedAdv = advanceUsedOf(bill.paid, bill.cashPaid, bill.bankPaid);
+              const pays = bill.payments || [];
+              if (!pays.length && usedAdv <= 0.0005) return null;
+              return (
               <div className="gbd-pays">
-                {(bill.payments || []).map((p, i) => (
-                  <div key={`${p.date}-${i}`} className="gbd-pay">
+                {pays.map((p, i) => {
+                  const payAmt = Number(p.paid) || 0;
+                  const allAdvance = i === 0 && usedAdv > 0.0005 && payAmt < 0.0005;
+                  return (
+                  <React.Fragment key={`${p.date}-${i}`}>
+                  <div className="gbd-pay">
                     <div>
-                      <b>{payLabel(p.mode)}</b>
+                      <b>{allAdvance ? 'Collected by advance' : payLabel(p.mode)}</b>
                       <span>{p.date}</span>
                     </div>
-                    <strong>{wt(p.paid) || '0.000'}</strong>
+                    <strong>{wt(allAdvance ? usedAdv : payAmt) || '0.000'}</strong>
                   </div>
-                ))}
+                  {i === 0 && usedAdv > 0.0005 && payAmt > 0.0005 ? (
+                    <div className="gbd-pay">
+                      <div>
+                        <b>Collected by advance</b>
+                        <span>{p.date}</span>
+                      </div>
+                      <strong>{wt(usedAdv) || '0.000'}</strong>
+                    </div>
+                  ) : null}
+                  </React.Fragment>
+                  );
+                })}
+                {!pays.length && usedAdv > 0.0005 ? (
+                  <div className="gbd-pay">
+                    <div>
+                      <b>Collected by advance</b>
+                      <span>{bill.date}</span>
+                    </div>
+                    <strong>{wt(usedAdv) || '0.000'}</strong>
+                  </div>
+                ) : null}
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
       </div>

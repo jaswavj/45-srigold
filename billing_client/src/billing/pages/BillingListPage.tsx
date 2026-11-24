@@ -6,6 +6,7 @@ import { BillingApiService } from '../../api/billing/billing-api-service';
 import { routerPathNames } from '../../routes/routerPathNames';
 import { goldAmount, goldTotalWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
+import { CollectionBillButton } from './CollectionBillPicker';
 import FinishedShareCard from './FinishedShareCard';
 import './master/Master.css';
 import './BillingListPage.css';
@@ -31,6 +32,8 @@ type ListRow = {
   cost: number;
   paid: number;
   payable: number;
+  cash?: number;
+  advanceUsed?: number;
   image1: string;
   image2: string;
   missingImage: boolean;
@@ -79,10 +82,12 @@ const listRowClass = (row: ListRow) => {
 const PayBadges: React.FC<{ row: ListRow }> = ({ row }) => {
   const paid = Number(row.paid) || 0;
   const payable = Number(row.payable) || 0;
+  const usedAdv = Math.max(0, Number(row.advanceUsed) || 0);
   const advance = Math.max(0, paid - payable);
   const due = Math.max(0, payable - paid);
   return (
     <div className="gold-list-pay">
+      {usedAdv > 0.001 ? <span className="gold-list-badge byadv">by advance</span> : null}
       <span className={`gold-list-badge adv${advance > 0.001 ? '' : ' off'}`}>Adv {advance.toFixed(3)}</span>
       <span className={`gold-list-badge due${due > 0.001 ? '' : ' off'}`}>Due {due.toFixed(3)}</span>
     </div>
@@ -282,6 +287,7 @@ const BillingListPage: React.FC = () => {
             >
               {loading && filter === 'finished' ? 'Loading…' : 'Finished'}
             </button>
+            <CollectionBillButton className="mst-btn gold-list-collection" />
             <button className="mst-btn" type="button" onClick={() => navigate(routerPathNames.billing)}>
               Back to billing
             </button>

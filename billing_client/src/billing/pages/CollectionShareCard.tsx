@@ -169,34 +169,22 @@ export const CollectionShareCard: React.FC<{
           ) : null}
           <div className="gold-share-body">
             <div className="gold-coll-lines">
-              {bills.map((bill) => {
-                const used = Math.max(0, Number(bill.advanceUsed) || 0);
-                return (
+              {bills.map((bill) => (
                 <div key={bill.billDisplay} className="gold-coll-line">
                   <div>
                     <strong>{bill.itemName || 'Item'}</strong>
                     <em>{[fmtDate(bill.date), bill.customerName].filter(Boolean).join(' · ')}</em>
-                    {used > 0.0005 ? (
-                      <em className="gold-coll-adv">Collected by advance {wt(used)} g</em>
-                    ) : null}
                   </div>
                   <b>{bill.totalWt > 0 ? `${bill.totalWt.toFixed(2)} g` : '0.00 g'}</b>
                 </div>
-                );
-              })}
+              ))}
             </div>
           </div>
           <div className="gold-share-totals gold-share-steps">
             <Step label="Total wt" value={`${totals.total.toFixed(2)} g`} tone="total" />
             <Step label="Collected wt" value={`${wt(totals.paid)} g`} />
-            {totals.usedAdv > 0.0005 ? (
-              <Step label="Collected by advance" value={`${wt(totals.usedAdv)} g`} />
-            ) : null}
-            {totals.advance > 0.0005 ? (
-              <Step label="Advance wt" value={`${wt(totals.advance)} g`} tone="plus" />
-            ) : (
-              <Step label="Balance wt" value={`${wt(totals.due)} g`} tone={totals.due > 0.0005 ? 'minus' : 'plus'} />
-            )}
+            <Step label="Balance wt" value={`${wt(totals.due)} g`} tone={totals.due > 0.0005 ? 'minus' : 'plus'} />
+            <Step label="Advance wt" value={`${wt(totals.advance)} g`} tone="plus" />
           </div>
           <div className="gold-share-thanks">Thank you for choosing {shop}</div>
         </div>

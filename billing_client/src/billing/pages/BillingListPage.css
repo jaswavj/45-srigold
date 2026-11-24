@@ -72,6 +72,12 @@
   color: #fff;
 }
 
+.gold-list-collection {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
 .gold-list-name-cell {
   display: flex;
   flex-direction: column;
@@ -107,6 +113,11 @@
 .gold-list-badge.due {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.gold-list-badge.byadv {
+  background: #d1fae5;
+  color: #047857;
 }
 
 .gold-list-badge.off {
@@ -443,16 +454,18 @@
 
   .gold-list-card-head {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
+    gap: 6px;
   }
 
   .gold-list-card-name {
     font-size: 18px;
     font-weight: 800;
     color: var(--color-text);
+    width: 100%;
     min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .gold-list-card-meta,
@@ -477,7 +490,7 @@
   }
 
   .gold-list-card .gold-list-pay {
-    flex-shrink: 0;
+    flex-shrink: 1;
     margin: 0;
   }
 
@@ -534,6 +547,11 @@ html[data-theme="dark"] .gold-list-badge.adv {
 html[data-theme="dark"] .gold-list-badge.due {
   background: #4a2428;
   color: #fca5a5;
+}
+
+html[data-theme="dark"] .gold-list-badge.byadv {
+  background: #163326;
+  color: #6ee7b7;
 }
 
 html[data-theme="dark"] .gold-list-hint {

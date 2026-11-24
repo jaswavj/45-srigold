@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { creditApi, creditData, creditError } from '../../../api/credit/credit-api-service';
 import { useBillDetail } from '../account-reports/BillDetailModal';
-import { CollectionBillButton } from '../CollectionBillPicker';
 import '../master/Master.css';
 import './Credit.css';
 
@@ -184,9 +183,6 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
                 <div className="crd-selected-phone">{selected.phone !== '-' ? selected.phone : ''}</div>
               </div>
               <div className="crd-selected-acts">
-                {isCustomer ? (
-                  <CollectionBillButton customer={{ id: selected.id, name: selected.name, phone: selected.phone }} />
-                ) : null}
                 <button className="mst-btn mst-btn-green" type="button" onClick={() => openAccount(selected.id)}>
                   View Account <i className="fas fa-arrow-right" />
                 </button>
@@ -403,6 +399,31 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
     return rows;
   }, [isCustomer, entryType, cashPaid, bankPaid, payMode, account]);
 
+  const advBalanceByIndex = useMemo(() => {
+    const rows = account?.timeline || [];
+    const order = rows.map((row, index) => ({ row, index }));
+    order.sort((a, b) => {
+      const cmp = `${a.row.date} ${a.row.time}`.localeCompare(`${b.row.date} ${b.row.time}`);
+      if (cmp) return cmp;
+      return (Number(a.row.refId) || 0) - (Number(b.row.refId) || 0);
+    });
+    let adv = 0;
+    const byIndex = rows.map(() => 0);
+    order.forEach(({ row, index }) => {
+      const type = (row.type || '').toUpperCase();
+      if (type === 'BILL') {
+        const paid = Number(row.paid) || 0;
+        const payable = Number(row.amount) || 0;
+        const used = Number(row.advanceUsed) || 0;
+        adv = Math.max(0, adv - used + Math.max(0, paid - payable));
+      } else if (type === 'ADVANCE') {
+        adv += Number(row.amount) || Number(row.paid) || 0;
+      }
+      byIndex[index] = adv;
+    });
+    return byIndex;
+  }, [account?.timeline]);
+
   const submit = async () => {
     setFormError('');
     const amt = parseFloat(amount) || 0;
@@ -498,11 +519,6 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
             {isCustomer ? 'Customer' : 'Supplier'} Account — {account.phone}
           </div>
         </div>
-        {isCustomer ? (
-          <div className="crd-account-acts">
-            <CollectionBillButton customer={{ id, name: account.name, phone: account.phone }} />
-          </div>
-        ) : null}
       </div>
       <div className="crd-layout">
         <div className="crd-left">
@@ -535,13 +551,14 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                     <th className="num">{isCustomer ? 'Total wt' : 'Payable / Amt'}</th>
                     <th className="num">{isCustomer ? 'Collected wt' : 'Paid'}</th>
                     <th className="num">{isCustomer ? 'Balance' : 'Pending'}</th>
+                    {isCustomer ? <th className="num">Adv balance</th> : null}
                     <th>Date / Time</th>
                     <th>{isCustomer ? 'Biller' : 'User'}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {account.timeline.length === 0 ? (
-                    <tr><td colSpan={8} className="mst-empty">No transactions found.</td></tr>
+                    <tr><td colSpan={isCustomer ? 9 : 8} className="mst-empty">No transactions found.</td></tr>
                   ) : (
                     account.timeline.map((row, i) => {
                       const type = (row.type || '').toUpperCase();
@@ -586,6 +603,11 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                           <td className="num" style={{ color: hasPend || (type === 'OLD_DUE') || pending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
                             {fmtNum(row.pending, isCustomer)}
                           </td>
+                          {isCustomer ? (
+                            <td className={`num crd-adv-bal${(advBalanceByIndex[i] || 0) > 0.0005 ? '' : ' off'}`}>
+                              {fmtNum(advBalanceByIndex[i] || 0, true)}
+                            </td>
+                          ) : null}
                           <td style={{ whiteSpace: 'nowrap' }}>
                             {row.date}
                             {row.time ? <><br /><span style={{ fontSize: 10, opacity: 0.6 }}>{row.time}</span></> : null}

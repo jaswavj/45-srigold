@@ -2112,7 +2112,7 @@ const BillingPage: React.FC = () => {
             <h3>Collection</h3>
             <div className="gold-form-row gold-form-pay">
               <div className="pos-fg gold-collect">
-                <span className="pos-lbl pos-lbl-em">Collected wt</span>
+                <span className="pos-lbl pos-lbl-em">Collected wt{usedAdvance > 0.001 ? ' · by advance' : ''}</span>
                 <input
                   className="pos-inp pos-inp-pay"
                   value={cashPaid}
