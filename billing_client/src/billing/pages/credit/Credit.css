@@ -264,6 +264,17 @@
   gap: 12px;
 }
 
+.crd-selected-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.crd-account-acts {
+  margin-left: auto;
+}
+
 .crd-layout {
   display: flex;
   gap: 12px;
@@ -299,6 +310,15 @@
 .crd-badge.old { background: #ffedd5; color: #c2410c; }
 .crd-badge.adv { background: #dbeafe; color: #1d4ed8; }
 .crd-badge.col { background: #dcfce7; color: #15803d; }
+
+.crd-by-adv {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #047857;
+  text-transform: none;
+  letter-spacing: 0;
+}
 
 .crd-row-due td { background: #fff1f1; }
 .crd-row-return td { background: #faf5ff; }
@@ -484,6 +504,34 @@
 }
 
 @media (max-width: 900px) {
+  .crd-selected {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .crd-selected-acts {
+    justify-content: stretch;
+  }
+
+  .crd-selected-acts .mst-btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .crd-account-head {
+    flex-wrap: wrap;
+  }
+
+  .crd-account-acts {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .crd-account-acts .mst-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
   .crd-stats,
   .st-collect-grid {
     grid-template-columns: 1fr 1fr !important;

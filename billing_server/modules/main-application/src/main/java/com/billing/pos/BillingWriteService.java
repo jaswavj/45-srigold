@@ -56,8 +56,8 @@ public class BillingWriteService {
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
                     "INSERT INTO prod_bill (bill_display, total, extraDisc, exchPoint, payable, paid, uid, DATE, TIME, cusName, prodDisc, cusPhn, " +
-                            "paymentMode, paymentType, balance, is_balance, currentBalance, customerId, price_category, attender_id, is_tax_bill) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            "paymentMode, paymentType, balance, is_balance, currentBalance, customerId, price_category, attender_id, is_tax_bill, advance_used) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setString(1, billNo);
@@ -87,6 +87,7 @@ public class BillingWriteService {
                 ps.setNull(18, java.sql.Types.INTEGER);
             }
             ps.setInt(19, isTaxBill);
+            ps.setDouble(20, advanceUsed);
             return ps;
         }, keyHolder);
         long billId = requireGeneratedId(keyHolder);
@@ -479,7 +480,11 @@ public class BillingWriteService {
         double oldBank = oldPayRows.isEmpty() ? 0 : toDouble(oldPayRows.get(0).get("bank"));
 
         reverseCustomerDue(oldCustomerId, oldDue);
-        reverseCustomerAdvance(oldCustomerId, extraAmount(toDouble(old.get("paid")), toDouble(old.get("payable"))));
+        double oldPaid = toDouble(old.get("paid"));
+        double oldPayable = toDouble(old.get("payable"));
+        double oldAdvanceUsed = Math.max(0, oldPaid - oldCash - oldBank);
+        addAdvanceToCustomerAccount(oldCustomerId, oldAdvanceUsed);
+        reverseCustomerAdvance(oldCustomerId, extraAmount(oldPaid, oldPayable));
         restoreBillStock(billId, uid);
 
         Long customerId = resolveCustomer(request);
@@ -500,7 +505,7 @@ public class BillingWriteService {
         jdbcTemplate.update(
                 "UPDATE prod_bill SET total = ?, extraDisc = ?, exchPoint = ?, payable = ?, paid = ?, cusName = ?, prodDisc = ?, cusPhn = ?, " +
                         "paymentMode = ?, paymentType = ?, balance = ?, is_balance = ?, currentBalance = ?, customerId = ?, " +
-                        "price_category = ?, attender_id = ?, is_tax_bill = ? WHERE id = ?",
+                        "price_category = ?, attender_id = ?, is_tax_bill = ?, advance_used = ? WHERE id = ?",
                 nz(request.getPriceTotal()),
                 nz(request.getFinalDiscount()),
                 nz(request.getExchangePointUsed()),
@@ -518,6 +523,7 @@ public class BillingWriteService {
                 priceCategory,
                 request.getAttenderId() != null && request.getAttenderId() > 0 ? request.getAttenderId() : null,
                 isTaxBill,
+                advanceUsed,
                 billId
         );
 

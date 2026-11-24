@@ -21,3 +21,9 @@ ALTER TABLE sri.prod_quotation_details ADD COLUMN charge_amt DOUBLE(12,2) NOT NU
 -- Details notes on each bill / hold line. Run once on cloud.
 ALTER TABLE sri.prod_bill_details ADD COLUMN item_details TEXT NULL;
 ALTER TABLE sri.prod_quotation_details ADD COLUMN item_details TEXT NULL;
+
+-- Advance used on each bill. Run once on cloud.
+ALTER TABLE sri.prod_bill ADD COLUMN advance_used DOUBLE(10,3) NOT NULL DEFAULT 0.000;
+UPDATE sri.prod_bill b
+LEFT JOIN sri.prod_bill_payment p ON p.bill_id = b.id
+SET b.advance_used = GREATEST(0, IFNULL(b.paid, 0) - IFNULL(p.cash, 0) - IFNULL(p.bank, 0));

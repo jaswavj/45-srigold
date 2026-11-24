@@ -130,15 +130,18 @@ public class CreditService {
 
         List<TimelineRow> timeline = new ArrayList<>();
         List<TimelineRow> bills = jdbcTemplate.query(
-                "SELECT a.payable, a.paid, a.balance, a.date, a.time, b.user_name, a.bill_display, a.id " +
-                        "FROM prod_bill a, users b " +
-                        "WHERE a.uid = b.id AND a.customerId = ? AND a.is_cancelled = 0 ORDER BY a.id DESC",
+                "SELECT a.payable, a.paid, a.balance, a.date, a.time, b.user_name, a.bill_display, a.id, " +
+                        "GREATEST(0, IFNULL(a.paid, 0) - IFNULL(p.cash, 0) - IFNULL(p.bank, 0)) AS advance_used " +
+                        "FROM prod_bill a JOIN users b ON a.uid = b.id " +
+                        "LEFT JOIN prod_bill_payment p ON p.bill_id = a.id " +
+                        "WHERE a.customerId = ? AND a.is_cancelled = 0 ORDER BY a.id DESC",
                 (rs, i) -> {
                     TimelineRow row = new TimelineRow();
                     row.setType("BILL");
                     row.setDocNo(nz(rs.getString("bill_display")));
                     row.setAmount(rs.getDouble("payable"));
                     row.setPaid(rs.getDouble("paid"));
+                    row.setAdvanceUsed(rs.getDouble("advance_used"));
                     row.setPending(rs.getDouble("balance"));
                     row.setDate(asDate(rs.getDate("date")));
                     row.setTime(asTime(rs.getTime("time")));

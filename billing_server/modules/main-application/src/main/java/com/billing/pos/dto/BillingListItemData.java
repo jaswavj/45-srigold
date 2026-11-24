@@ -24,6 +24,8 @@ public class BillingListItemData {
     private Double cost;
     private Double paid;
     private Double payable;
+    private Double cash;
+    private Double advanceUsed;
     private String image1;
     private String image2;
     private Boolean missingImage;

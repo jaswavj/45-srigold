@@ -8,6 +8,7 @@ public class TimelineRow {
     private String docNo;
     private Double amount;
     private Double paid;
+    private Double advanceUsed;
     private Double pending;
     private String date;
     private String time;

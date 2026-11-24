@@ -384,16 +384,16 @@ const BillingPage: React.FC = () => {
         setMode('1');
         setPayType('1');
         setCashPaid((() => {
-          const paid = (data.cashPaid || 0) + (data.bankPaid || 0);
+          const paid = Number(data.paid) || ((data.cashPaid || 0) + (data.bankPaid || 0) + (data.advanceUsed || 0));
           return paid > 0.0005 ? money(paid) : '';
         })());
         setBankPaid('0');
         setBalance(money(data.balance || 0));
         setExchangePoint(data.exchangePoint || 0);
         setCustomerAdvance(Number(data.advance) || 0);
-        setAdvanceUsed(0);
+        setAdvanceUsed(Number(data.advanceUsed) || Math.max(0, (Number(data.paid) || 0) - (data.cashPaid || 0) - (data.bankPaid || 0)));
         loadedCustomerIdRef.current = data.customerId || 0;
-        savedBillExtraRef.current = Math.max(0, ((data.cashPaid || 0) + (data.bankPaid || 0)) - (data.payable || 0));
+        savedBillExtraRef.current = Math.max(0, (Number(data.paid) || ((data.cashPaid || 0) + (data.bankPaid || 0))) - (data.payable || 0));
         toast.info(`Editing bill ${data.billDisplay}`);
       } catch (err: any) {
         if (!live) return;
@@ -443,9 +443,9 @@ const BillingPage: React.FC = () => {
   const extra = 0;
   const exchCredit = 0;
   const payable = Math.max(0, totals.grandTotal);
-  const cashAmt = parseFloat(cashPaid) || 0;
+  const collectedAmt = parseFloat(cashPaid) || 0;
   const usedAdvance = Math.max(0, Number(advanceUsed) || 0);
-  const paidAmt = cashAmt + usedAdvance;
+  const paidAmt = collectedAmt;
   const dueAmt = Math.max(0, payable - paidAmt);
   const extraAmt = Math.max(0, paidAmt - payable);
   const weightsPending = !!search.trim() && payable < 0.001;
@@ -478,10 +478,11 @@ const BillingPage: React.FC = () => {
     if (!autoPay.current) return;
     setMode('1');
     setPayType('1');
-    setCashPaid(payable > 0.0005 ? wastage(payable) : '');
+    const leaveEmpty = !editBillId && customerAdvance > 0.001;
+    setCashPaid(!leaveEmpty && payable > 0.0005 ? wastage(payable) : '');
     setBankPaid('0');
     setBalance('0');
-  }, [payable, payEpoch]);
+  }, [payable, payEpoch, customerAdvance, editBillId]);
 
   useEffect(() => {
     setBalance(money(Math.max(0, payable - (parseFloat(cashPaid) || 0))));
@@ -537,6 +538,9 @@ const BillingPage: React.FC = () => {
     setExchangeUsed(0);
     setCustomerAdvance(Number(c.advance) || 0);
     setAdvanceUsed(0);
+    if (autoPay.current && !editBillId && Number(c.advance) > 0.001) {
+      setCashPaid('');
+    }
     clearCustSuggest();
   };
 
@@ -1103,9 +1107,11 @@ const BillingPage: React.FC = () => {
       searchRef.current?.focus();
       return;
     }
-    const cash = parseFloat(cashPaid) || 0;
+    const collected = parseFloat(cashPaid) || 0;
+    const adv = Math.min(usedAdvance, collected);
+    const cash = Math.max(0, collected - adv);
     const bank = 0;
-    const paid = cash + usedAdvance;
+    const paid = collected;
     const due = Math.max(0, payable - paid);
     if (cash < 0) {
       toast.error('Collected wt cannot be negative.');
@@ -1131,7 +1137,7 @@ const BillingPage: React.FC = () => {
         ...payloadBase(),
         cashPaid: cash,
         bankPaid: bank,
-        advanceUsed: usedAdvance,
+        advanceUsed: adv,
         mode: 1,
         type: 1,
         balance: due,
@@ -2120,29 +2126,51 @@ const BillingPage: React.FC = () => {
                 <span>{dueAmt > 0.001 ? 'Due' : extraAmt > 0.001 ? (weightsPending ? 'Advance' : 'Extra') : 'Due'}</span>
                 <strong>{money(dueAmt > 0.001 ? dueAmt : extraAmt)}</strong>
               </div>
-              {usableAdvance > 0.001 && (
+              {(usableAdvance > 0.001 || usedAdvance > 0.001) && (
                 <div className="pos-save-advance gold-advance">
                   <span>Advance {money(usableAdvance)}</span>
-                  <button
-                    className="pos-btn pos-btn-outline"
-                    type="button"
-                    disabled={payable < 0.001}
-                    onClick={() => {
-                      const uncovered = Math.max(0, payable - cashAmt);
-                      if (uncovered < 0.001) {
-                        const use = Math.min(usableAdvance, payable);
-                        setAdvanceUsed(use);
-                        setCashPaid(money(Math.max(0, payable - use)));
-                      } else {
-                        setAdvanceUsed(Math.min(usableAdvance, uncovered));
-                      }
-                    }}
-                  >
-                    Use advance
-                  </button>
+                  {usedAdvance > 0.001 ? (
+                    <span className="gold-advance-used">Used in this bill {money(usedAdvance)}</span>
+                  ) : null}
+                  {usableAdvance > 0.001 ? (
+                    <button
+                      className="pos-btn pos-btn-outline"
+                      type="button"
+                      disabled={payable < 0.001}
+                      onClick={() => {
+                        const uncovered = Math.max(0, payable - collectedAmt);
+                        if (uncovered > 0.001) {
+                          const add = Math.min(usableAdvance, uncovered);
+                          if (add < 0.001) return;
+                          setAdvanceUsed(usedAdvance + add);
+                          setCashPaid(money(collectedAmt + add));
+                          return;
+                        }
+                        if (usedAdvance < 0.001 && payable > 0.001) {
+                          const use = Math.min(usableAdvance, payable);
+                          if (use < 0.001) return;
+                          setAdvanceUsed(use);
+                          return;
+                        }
+                        toast.info('Bill already collected. Remaining advance stays in account.');
+                      }}
+                    >
+                      Use advance
+                    </button>
+                  ) : null}
                   {usedAdvance > 0.001 && (
-                    <button className="pos-btn pos-btn-outline" type="button" onClick={() => setAdvanceUsed(0)}>
-                      Clear {money(usedAdvance)}
+                    <button
+                      className="pos-btn pos-btn-outline"
+                      type="button"
+                      onClick={() => {
+                        const back = usedAdvance;
+                        const cashOnly = Math.max(0, collectedAmt - usedAdvance);
+                        setAdvanceUsed(0);
+                        setCashPaid(cashOnly > 0.0005 ? money(cashOnly) : '');
+                        if (editBillId) toast.info(`${money(back)} will be added to advance`);
+                      }}
+                    >
+                      {editBillId ? `Clear ${money(usedAdvance)} · add to advance` : `Clear ${money(usedAdvance)}`}
                     </button>
                   )}
                 </div>

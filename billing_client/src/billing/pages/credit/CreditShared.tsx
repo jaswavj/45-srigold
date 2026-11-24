@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { creditApi, creditData, creditError } from '../../../api/credit/credit-api-service';
 import { useBillDetail } from '../account-reports/BillDetailModal';
+import { CollectionBillButton } from '../CollectionBillPicker';
 import '../master/Master.css';
 import './Credit.css';
 
@@ -22,6 +23,7 @@ type TimelineRow = {
   docNo: string;
   amount: number | null;
   paid: number | null;
+  advanceUsed?: number | null;
   pending: number | null;
   date: string;
   time: string;
@@ -181,9 +183,14 @@ export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
                 <div style={{ fontWeight: 700 }}>{selected.name}</div>
                 <div className="crd-selected-phone">{selected.phone !== '-' ? selected.phone : ''}</div>
               </div>
-              <button className="mst-btn mst-btn-green" type="button" onClick={() => openAccount(selected.id)}>
-                View Account <i className="fas fa-arrow-right" />
-              </button>
+              <div className="crd-selected-acts">
+                {isCustomer ? (
+                  <CollectionBillButton customer={{ id: selected.id, name: selected.name, phone: selected.phone }} />
+                ) : null}
+                <button className="mst-btn mst-btn-green" type="button" onClick={() => openAccount(selected.id)}>
+                  View Account <i className="fas fa-arrow-right" />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -491,6 +498,11 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
             {isCustomer ? 'Customer' : 'Supplier'} Account — {account.phone}
           </div>
         </div>
+        {isCustomer ? (
+          <div className="crd-account-acts">
+            <CollectionBillButton customer={{ id, name: account.name, phone: account.phone }} />
+          </div>
+        ) : null}
       </div>
       <div className="crd-layout">
         <div className="crd-left">
@@ -565,7 +577,12 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                               : <span style={{ opacity: 0.35 }}>—</span>}
                           </td>
                           <td className="num">{fmtNum(row.amount, isCustomer)}</td>
-                          <td className="num">{fmtNum(row.paid, isCustomer)}</td>
+                          <td className="num">
+                            {fmtNum(row.paid, isCustomer)}
+                            {isCustomer && type === 'BILL' && (Number(row.advanceUsed) || 0) > 0.0005 ? (
+                              <div className="crd-by-adv">by advance</div>
+                            ) : null}
+                          </td>
                           <td className="num" style={{ color: hasPend || (type === 'OLD_DUE') || pending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
                             {fmtNum(row.pending, isCustomer)}
                           </td>

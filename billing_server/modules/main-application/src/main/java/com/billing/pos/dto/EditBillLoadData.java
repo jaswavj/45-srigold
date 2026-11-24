@@ -17,6 +17,8 @@ public class EditBillLoadData {
     private Integer paymentType;
     private Double cashPaid;
     private Double bankPaid;
+    private Double paid;
+    private Double advanceUsed;
     private Double balance;
     private Double payable;
     private Double exchangePoint;

@@ -119,6 +119,54 @@
   padding: 10px 0 8px;
 }
 
+.gold-coll-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gold-coll-line {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #ead7a8;
+}
+
+.gold-coll-line:last-child {
+  border-bottom: 0;
+}
+
+.gold-coll-line strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 800;
+  color: #3f2a0a;
+  overflow-wrap: anywhere;
+}
+
+.gold-coll-line em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a6a32;
+}
+
+.gold-coll-adv {
+  color: #047857 !important;
+  font-weight: 800 !important;
+}
+
+.gold-coll-line b {
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 900;
+  color: #5c3d08;
+}
+
 .gold-share-media {
   display: flex;
   align-items: flex-start;
@@ -138,12 +186,12 @@
 
 .gold-share-photo {
   position: relative;
-  width: 76px;
-  height: 76px;
+  width: 88px;
+  height: auto;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid #ead7a8;
-  background: #fff;
+  background: #fff7e8;
 }
 
 .gold-share-photo.empty {
@@ -158,9 +206,12 @@
 
 .gold-share-photo img {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  max-height: 110px;
+  object-fit: contain;
+  object-position: center;
   display: block;
+  background: #fff7e8;
 }
 
 .gold-share-photo em {

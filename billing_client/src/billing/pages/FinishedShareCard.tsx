@@ -40,6 +40,8 @@ type ShareBill = {
   companyAddress?: string;
   payable?: number;
   paid?: number;
+  cashPaid?: number;
+  bankPaid?: number;
   balance?: number;
   items?: ShareItem[];
   oldDues?: OldDue[];
@@ -156,6 +158,8 @@ export const FinishedShareCard: React.FC<{
     const paid = Number(bill?.paid) || 0;
     const payable = Number(bill?.payable) || total;
     const due = Math.max(0, payable - paid);
+    const cash = (Number(bill?.cashPaid) || 0) + (Number(bill?.bankPaid) || 0);
+    const usedAdv = Math.max(0, paid - cash);
     const oldDues = (bill?.oldDues || []).filter((row) => Number(row.balance) > 0.0005);
     const oldDue = oldDues.reduce((s, row) => s + (Number(row.balance) || 0), 0);
     return {
@@ -170,6 +174,7 @@ export const FinishedShareCard: React.FC<{
       amount,
       paid,
       due,
+      usedAdv,
       advance: Math.max(0, paid - payable),
       oldDues,
       oldDue,
@@ -301,6 +306,9 @@ export const FinishedShareCard: React.FC<{
                 <Step label="Total wt" value={totals.total > 0 ? `${totals.total.toFixed(2)} g` : null} tone="total" />
                 <Step label="Total amount" value={totals.amount > 0 ? rupees(totals.amount) : null} tone="total" />
                 <Step label="Collected wt" value={has(totals.paid) ? `${wt(totals.paid)} g` : `${wt(0)} g`} />
+                {totals.usedAdv > 0.0005 ? (
+                  <Step label="Collected by advance" value={`${wt(totals.usedAdv)} g`} />
+                ) : null}
                 {totals.advance > 0.0005 ? (
                   <Step label="Advance wt" value={`${wt(totals.advance)} g`} tone="plus" />
                 ) : (

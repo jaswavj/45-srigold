@@ -61,6 +61,8 @@ public class BillingReadService {
         addTableColumn("prod_quotation_details", "item_size", "VARCHAR(50) NULL");
         addTableColumn("prod_quotation_details", "purity", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
         addGoldColumns("prod_quotation_details");
+        addBillColumn("advance_used", "DOUBLE(10,3) NOT NULL DEFAULT 0.000");
+        backfillAdvanceUsed();
         quotationFlagsReady = true;
     }
 
@@ -77,6 +79,17 @@ public class BillingReadService {
 
     private void addBillColumn(String name, String definition) {
         addTableColumn("prod_bill", name, definition);
+    }
+
+    private void backfillAdvanceUsed() {
+        try {
+            jdbcTemplate.update(
+                    "UPDATE prod_bill b LEFT JOIN prod_bill_payment p ON p.bill_id = b.id " +
+                            "SET b.advance_used = GREATEST(0, IFNULL(b.paid, 0) - IFNULL(p.cash, 0) - IFNULL(p.bank, 0))"
+            );
+        } catch (Exception ignored) {
+            // column added on this boot; next request will fill it
+        }
     }
 
     private void addGoldColumns(String table) {
@@ -415,8 +428,13 @@ public class BillingReadService {
                     data.setPaymentMode(rs.getInt("paymentMode"));
                     int payType = rs.getInt("paymentType");
                     data.setPaymentType(payType <= 0 ? 1 : payType);
-                    data.setCashPaid(rs.getDouble("paid_total"));
-                    data.setBankPaid(0d);
+                    double cash = rs.getDouble("cash");
+                    double bank = rs.getDouble("bank");
+                    double paid = rs.getDouble("paid_total");
+                    data.setCashPaid(cash);
+                    data.setBankPaid(bank);
+                    data.setPaid(paid);
+                    data.setAdvanceUsed(Math.max(0, paid - cash - bank));
                     data.setBalance(rs.getDouble("balance"));
                     data.setPayable(rs.getDouble("payable"));
                     data.setExchangePoint(rs.getDouble("exchange_point"));
@@ -479,11 +497,14 @@ public class BillingReadService {
                         "IFNULL(NULLIF(TRIM(c.phone_number), ''), IFNULL(b.cusPhn, '')) AS phone, " +
                         "p.name AS item_name, IFNULL(d.item_size, '') AS item_size, IFNULL(d.purity, 0) AS purity, IFNULL(d.metal_wt, 0) AS metal_wt, " + GOLD_COLS + ", d.price AS cost, " +
                         "IFNULL(b.paid, 0) AS paid, IFNULL(b.payable, 0) AS payable, " +
+                        "IFNULL(pay.cash, 0) + IFNULL(pay.bank, 0) AS cash, " +
+                        "GREATEST(IFNULL(b.advance_used, 0), GREATEST(0, IFNULL(b.paid, 0) - IFNULL(pay.cash, 0) - IFNULL(pay.bank, 0))) AS advance_used, " +
                         "IFNULL(d.image1, '') AS image1, IFNULL(d.image2, '') AS image2 " +
                         "FROM prod_bill b " +
                         "JOIN prod_bill_details d ON d.bill_id = b.id " +
                         "JOIN prod_product p ON p.id = d.prod_id " +
                         "LEFT JOIN customers c ON c.id = b.customerId " +
+                        "LEFT JOIN prod_bill_payment pay ON pay.bill_id = b.id " +
                         "WHERE IFNULL(b.is_cancelled, 0) = 0 ";
         if (unfinished) {
             return jdbcTemplate.query(
@@ -526,6 +547,8 @@ public class BillingReadService {
         row.setCost(rs.getDouble("cost"));
         row.setPaid(rs.getDouble("paid"));
         row.setPayable(rs.getDouble("payable"));
+        row.setCash(rs.getDouble("cash"));
+        row.setAdvanceUsed(rs.getDouble("advance_used"));
         String image1 = nz(rs.getString("image1"));
         String image2 = nz(rs.getString("image2"));
         row.setImage1(image1);
