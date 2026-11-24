@@ -8,6 +8,7 @@ import { goldAmount, goldTotalWt } from '../utils/goldCalc';
 import { sriImageUrl } from '../utils/sriImages';
 import { CollectionBillButton } from './CollectionBillPicker';
 import FinishedShareCard from './FinishedShareCard';
+import { fmtDate, fmtTime } from './ShareCardItem';
 import './master/Master.css';
 import './BillingListPage.css';
 
@@ -77,6 +78,20 @@ const listRowClass = (row: ListRow) => {
   if (missingWeights(row)) classes.push('gold-list-missing-wt');
   if (bothPhotosMissing(row)) classes.push('gold-list-missing');
   return classes.join(' ');
+};
+
+const SHOW_LIST_WHATSAPP = false;
+
+const listWhen = (row: ListRow) => {
+  const d = fmtDate(row.date);
+  const t = fmtTime(row.time);
+  return [d, t].filter(Boolean).join(' · ') || '-';
+};
+
+const collectedOf = (row: ListRow) => {
+  const paid = Number(row.paid) || 0;
+  const used = Math.max(0, Number(row.advanceUsed) || 0);
+  return { paid, byAdv: used > 0.001 };
 };
 
 const PayBadges: React.FC<{ row: ListRow }> = ({ row }) => {
@@ -205,21 +220,23 @@ const BillingListPage: React.FC = () => {
 
   const RowActs: React.FC<{ row: ListRow }> = ({ row }) => (
     <div className="gold-list-acts">
-      <button
-        className="gold-list-icon gold-list-icon-wa"
-        type="button"
-        title="WhatsApp / JPEG"
-        aria-label="WhatsApp"
-        onClick={() => {
-          if (!row.billDisplay) {
-            toast.error('Bill number missing');
-            return;
-          }
-          setShareBillNo(row.billDisplay);
-        }}
-      >
-        <i className="fab fa-whatsapp" />
-      </button>
+      {SHOW_LIST_WHATSAPP ? (
+        <button
+          className="gold-list-icon gold-list-icon-wa"
+          type="button"
+          title="WhatsApp / JPEG"
+          aria-label="WhatsApp"
+          onClick={() => {
+            if (!row.billDisplay) {
+              toast.error('Bill number missing');
+              return;
+            }
+            setShareBillNo(row.billDisplay);
+          }}
+        >
+          <i className="fab fa-whatsapp" />
+        </button>
+      ) : null}
       <button className="gold-list-icon gold-list-icon-edit" type="button" title="Edit" aria-label="Edit" onClick={() => editBill(row)}>
         <i className="fas fa-pen" />
       </button>
@@ -307,11 +324,12 @@ const BillingListPage: React.FC = () => {
           </span>
         </div>
         <div className="gold-list-table-wrap">
-          <table className="mst-table gold-list-table">
+          <table className="mst-table mst-table-wide gold-list-table">
             <thead>
               <tr>
                 <th>Action</th>
                 <th>Name</th>
+                <th>Date / Time</th>
                 <th>Phone</th>
                 <th>Item name</th>
                 <th>Size</th>
@@ -322,6 +340,7 @@ const BillingListPage: React.FC = () => {
                 <th>Stone wt</th>
                 <th>Stone wastage</th>
                 <th>Total wt</th>
+                <th>Collected wt</th>
                 <th>Amount</th>
                 <th>Photos</th>
               </tr>
@@ -329,7 +348,7 @@ const BillingListPage: React.FC = () => {
             <tbody>
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="gold-list-empty">
+                  <td colSpan={16} className="gold-list-empty">
                     {rows.length === 0
                       ? (filter === 'unfinished'
                         ? 'No items without finishing wt'
@@ -349,6 +368,7 @@ const BillingListPage: React.FC = () => {
                       <PayBadges row={row} />
                     </div>
                   </td>
+                  <td>{listWhen(row)}</td>
                   <td>{row.phone || '-'}</td>
                   <td>{row.itemName || '-'}</td>
                   <td>{row.itemSize || '-'}</td>
@@ -359,6 +379,10 @@ const BillingListPage: React.FC = () => {
                   <td>{opt(row.stoneWt)}</td>
                   <td>{opt(row.stoneWastage)}</td>
                   <td>{goldTotalWt(rowGold(row)).toFixed(2)}</td>
+                  <td>
+                    {collectedOf(row).paid.toFixed(3)}
+                    {collectedOf(row).byAdv ? <em className="gold-list-byadv">by advance</em> : null}
+                  </td>
                   <td>
                     {goldAmount(rowGold(row)) > 0 ? (
                       <div>
@@ -404,6 +428,7 @@ const BillingListPage: React.FC = () => {
                 <div className="gold-list-card-name">{row.customerName || '-'}</div>
                 <PayBadges row={row} />
               </div>
+              <div className="gold-list-card-meta">{listWhen(row)}</div>
               <div className="gold-list-card-meta">{row.phone || '-'}</div>
               <div className="gold-list-card-item">{row.itemName || '-'}{row.itemSize ? ` · ${row.itemSize}` : ''}</div>
               <div className={`gold-list-card-wt${!(Number(row.cost) > 0) ? ' gold-list-wt-pending' : ''}`}>Finishing wt: {wt(row.cost)}</div>
@@ -413,6 +438,10 @@ const BillingListPage: React.FC = () => {
               <div className="gold-list-card-wt">Stone wt: {opt(row.stoneWt)}</div>
               <div className="gold-list-card-wt">Stone wastage: {opt(row.stoneWastage)}</div>
               <div className="gold-list-card-wt">Total wt: {goldTotalWt(rowGold(row)).toFixed(2)}</div>
+              <div className="gold-list-card-wt">
+                Collected wt: {collectedOf(row).paid.toFixed(3)}
+                {collectedOf(row).byAdv ? ' · by advance' : ''}
+              </div>
               <div className="gold-list-card-wt">Amount: {goldAmount(rowGold(row)) > 0 ? rupee(goldAmount(rowGold(row))) : '-'}</div>
               <div className="gold-list-card-photos">
                 <Photo fileName={row.image1} onOpen={() => openPhoto(row, 1)} />

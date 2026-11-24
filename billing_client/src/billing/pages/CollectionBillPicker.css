@@ -1,7 +1,7 @@
 .gold-coll-back {
   position: fixed;
   inset: 0;
-  z-index: 220;
+  z-index: 380;
   background: rgba(15, 23, 42, 0.55);
   display: flex;
   align-items: flex-start;
@@ -80,6 +80,14 @@
 
 .gold-coll-table tbody tr.on {
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.gold-coll-table tbody tr.gold-coll-adv {
+  background: #ecfdf5;
+}
+
+.gold-coll-table tbody tr.gold-coll-adv.on {
+  background: #d1fae5;
 }
 
 .gold-coll-table td em {
@@ -194,6 +202,16 @@
 .gold-coll-card.on {
   border-color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+.gold-coll-card.gold-coll-adv {
+  background: #ecfdf5;
+  border-color: #86efac;
+}
+
+.gold-coll-card.gold-coll-adv.on {
+  background: #d1fae5;
+  border-color: #34d399;
 }
 
 .gold-coll-card input {

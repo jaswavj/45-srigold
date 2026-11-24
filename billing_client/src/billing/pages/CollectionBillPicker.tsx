@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'react-toastify';
 import { billingApi } from '../../api/billing/billing-api-service';
 import { creditApi, creditData } from '../../api/credit/credit-api-service';
@@ -12,6 +13,7 @@ type ListRow = {
   billDisplay: string;
   customerId?: number;
   date: string;
+  time?: string;
   customerName: string;
   phone: string;
   itemName: string;
@@ -71,6 +73,7 @@ const groupBills = (rows: ListRow[]): CollectionBill[] => {
       map.set(key, {
         billDisplay: key,
         date: row.date || '',
+        time: row.time || '',
         customerName: row.customerName || '',
         phone: row.phone || '',
         itemName: row.itemName || '',
@@ -117,14 +120,53 @@ export const CollectionBillPicker: React.FC<{
         creditApi.customerAccount(customer.id),
       ]);
       const rows: ListRow[] = Array.isArray(listRes?.data) ? listRes.data : [];
-      const account = creditData<{ timeline?: { type?: string; docNo?: string }[] }>(accRes);
+      const account = creditData<{
+        timeline?: {
+          type?: string;
+          docNo?: string;
+          date?: string;
+          time?: string;
+          amount?: number | null;
+          paid?: number | null;
+          notes?: string;
+        }[];
+      }>(accRes);
       const billNos = new Set(
         (account.timeline || [])
           .filter((row) => (row.type || '').toUpperCase() === 'BILL')
           .map((row) => (row.docNo || '').trim())
           .filter(Boolean),
       );
-      setBills(groupBills(rows.filter((row) => matchesCustomer(row, customer, billNos))));
+      const inRange = (d?: string) => {
+        const day = String(d || '').slice(0, 10);
+        return !!day && day >= start && day <= end;
+      };
+      const grouped = groupBills(rows.filter((row) => matchesCustomer(row, customer, billNos)));
+      const advances: CollectionBill[] = (account.timeline || [])
+        .filter((row) => (row.type || '').toUpperCase() === 'ADVANCE' && inRange(row.date))
+        .map((row, i) => {
+          const amt = Number(row.amount) || Number(row.paid) || 0;
+          const cashPaid = Number(row.paid) || amt;
+          return {
+            billDisplay: `ADV:${row.date || ''}|${row.time || ''}|${i}`,
+            date: row.date || '',
+            time: row.time || '',
+            customerName: customer.name,
+            phone: customer.phone,
+            itemName: (row.notes || '').trim() || 'Advance',
+            itemCount: 1,
+            totalWt: 0,
+            paid: amt,
+            payable: 0,
+            cash: cashPaid,
+            advanceUsed: 0,
+            kind: 'advance',
+          };
+        });
+      const stamp = (row: CollectionBill) =>
+        `${String(row.date || '').slice(0, 10)} ${String(row.time || '00:00:00')}`;
+      const merged = [...grouped, ...advances].sort((a, b) => stamp(b).localeCompare(stamp(a)));
+      setBills(merged);
       setSelected(new Set());
     } catch (err: any) {
       toast.error(err?.response?.data?.data?.error || err?.message || 'Could not load bills');
@@ -173,7 +215,7 @@ export const CollectionBillPicker: React.FC<{
   const proceed = () => {
     const picked = bills.filter((bill) => selected.has(bill.billDisplay));
     if (!picked.length) {
-      toast.warning('Select at least one bill');
+      toast.warning('Select at least one bill or advance');
       return;
     }
     onProceed(picked);
@@ -196,10 +238,10 @@ export const CollectionBillPicker: React.FC<{
   };
 
   const emptyText = customer
-    ? `No bills for ${customer.name || 'this customer'} in this date range`
+    ? `No bills or advance for ${customer.name || 'this customer'} in this date range`
     : 'No bills in this date range';
 
-  return (
+  return createPortal(
     <div className="gold-coll-back" onClick={onClose}>
       <div className="gold-coll-panel mst-card" onClick={(e) => e.stopPropagation()}>
         <div className="mst-card-h gold-coll-head">
@@ -249,13 +291,17 @@ export const CollectionBillPicker: React.FC<{
                 ) : visible.length === 0 ? (
                   <tr><td colSpan={6} className="gold-coll-empty">{emptyText}</td></tr>
                 ) : visible.map((bill) => (
-                  <tr key={bill.billDisplay} className={selected.has(bill.billDisplay) ? 'on' : ''} onClick={() => toggle(bill.billDisplay)}>
+                  <tr
+                    key={bill.billDisplay}
+                    className={`${bill.kind === 'advance' ? 'gold-coll-adv' : ''}${selected.has(bill.billDisplay) ? ' on' : ''}`.trim()}
+                    onClick={() => toggle(bill.billDisplay)}
+                  >
                     <td className="gold-coll-check" onClick={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.has(bill.billDisplay)} onChange={() => toggle(bill.billDisplay)} />
                     </td>
                     <td>{fmtDate(bill.date)}</td>
-                    <td>{bill.itemName || '—'}</td>
-                    <td>{bill.totalWt.toFixed(2)}</td>
+                    <td>{bill.kind === 'advance' ? (bill.itemName || 'Advance') : (bill.itemName || '—')}</td>
+                    <td>{bill.kind === 'advance' ? '—' : bill.totalWt.toFixed(2)}</td>
                     <td>
                       {bill.paid.toFixed(3)}
                       {collectedByAdvance(bill) ? <em>by advance</em> : null}
@@ -278,12 +324,16 @@ export const CollectionBillPicker: React.FC<{
                   Select all
                 </label>
                 {visible.map((bill) => (
-                  <label key={bill.billDisplay} className={`gold-coll-card${selected.has(bill.billDisplay) ? ' on' : ''}`}>
+                  <label key={bill.billDisplay} className={`gold-coll-card${bill.kind === 'advance' ? ' gold-coll-adv' : ''}${selected.has(bill.billDisplay) ? ' on' : ''}`}>
                     <input type="checkbox" checked={selected.has(bill.billDisplay)} onChange={() => toggle(bill.billDisplay)} />
                     <div>
-                      <strong>{bill.itemName || 'Item'}</strong>
+                      <strong>{bill.kind === 'advance' ? (bill.itemName || 'Advance') : (bill.itemName || 'Item')}</strong>
                       <em>{fmtDate(bill.date)}</em>
-                      <span>Total {bill.totalWt.toFixed(2)} g · Collected {collectedLabel(bill)} g · {dueOrAdv(bill)}</span>
+                      <span>
+                        {bill.kind === 'advance'
+                          ? `Advance ${bill.paid.toFixed(3)} g · ${dueOrAdv(bill)}`
+                          : `Total ${bill.totalWt.toFixed(2)} g · Collected ${collectedLabel(bill)} g · ${dueOrAdv(bill)}`}
+                      </span>
                     </div>
                   </label>
                 ))}
@@ -298,7 +348,8 @@ export const CollectionBillPicker: React.FC<{
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
@@ -343,7 +394,7 @@ const CollectionCustomerPick: React.FC<{
     }, 280);
   };
 
-  return (
+  return createPortal(
     <div className="gold-coll-back" onClick={onClose}>
       <div className="gold-coll-panel gold-coll-pick mst-card" onClick={(e) => e.stopPropagation()}>
         <div className="mst-card-h gold-coll-head">
@@ -379,7 +430,8 @@ const CollectionCustomerPick: React.FC<{
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 
