@@ -276,10 +276,23 @@
 }
 
 .crd-layout {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  grid-template-areas:
+    "stats entry"
+    "bills entry";
   gap: 12px;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  align-items: start;
+}
+
+.crd-layout > .crd-stats {
+  grid-area: stats;
+  margin-bottom: 0;
+}
+
+.crd-bills {
+  grid-area: bills;
+  min-width: 0;
 }
 
 .crd-left {
@@ -288,8 +301,8 @@
 }
 
 .crd-right {
-  flex: 2;
-  min-width: 280px;
+  grid-area: entry;
+  min-width: 0;
   position: sticky;
   top: 12px;
 }
@@ -399,6 +412,77 @@
 }
 
 .crd-split-row .ok {
+  color: #16a34a;
+}
+
+.crd-adv-box {
+  max-width: 520px;
+}
+
+.crd-adv-detail {
+  padding: 16px 18px 18px;
+}
+
+.crd-adv-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.crd-adv-kpi {
+  text-align: center;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+
+.crd-adv-kpi .l {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.crd-adv-kpi .v {
+  margin-top: 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.crd-adv-kpi.due .v {
+  color: #b45309;
+}
+
+.crd-adv-kpi.plus .v {
+  color: #16a34a;
+}
+
+.crd-adv-remark {
+  font-size: 12px;
+  margin: 0 0 12px;
+  opacity: 0.75;
+}
+
+.crd-adv-empty {
+  font-size: 13px;
+  padding: 10px 0 6px;
+  opacity: 0.7;
+}
+
+.crd-adv-bills {
+  margin-top: 6px;
+}
+
+.crd-adv-foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--color-primary) 12%, transparent);
+  font-size: 13px;
+}
+
+.crd-adv-foot strong {
   color: #16a34a;
 }
 
@@ -560,9 +644,20 @@
     font-size: 1.15rem;
   }
 
+  .crd-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "stats"
+      "entry"
+      "bills";
+  }
+
   .crd-right {
     position: static;
-    flex: 1 1 100%;
+  }
+
+  .crd-adv-kpis {
+    grid-template-columns: 1fr;
   }
 
   .crd-modal {

@@ -53,6 +53,40 @@ const num = (n?: number | null) =>
 const fmtAmt = (n?: number | null, asWt?: boolean) => (asWt ? wt(n) : money(n));
 const fmtNum = (n?: number | null, asWt?: boolean) => (asWt ? wt(n) : num(n));
 
+type AdvanceBillClose = { docNo: string; take: number };
+
+const parseAdvanceDetail = (row: TimelineRow) => {
+  const added = Number(row.amount) || Number(row.paid) || 0;
+  const notes = (row.notes || '').trim();
+  const leftoverMatch = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(notes);
+  const parts = notes.split('|').map((part) => part.trim()).filter(Boolean);
+  const system = leftoverMatch ? (parts[parts.length - 1] || notes) : notes;
+  const billsPart = system.replace(/;?\s*leftover\s+[0-9]+(?:\.[0-9]+)?/i, '').trim();
+  const bills: AdvanceBillClose[] = [];
+  if (billsPart) {
+    billsPart.split(',').forEach((chunk) => {
+      const match = chunk.trim().match(/^(.+?)\s+([0-9]+(?:\.[0-9]+)?)$/);
+      if (match) bills.push({ docNo: match[1].trim(), take: Number(match[2]) });
+    });
+  }
+  const closedFromBills = bills.reduce((sum, bill) => sum + bill.take, 0);
+  const leftover = leftoverMatch
+    ? Math.max(0, Number(leftoverMatch[1]) || 0)
+    : Math.max(0, added - closedFromBills);
+  const remark = leftoverMatch && parts.length > 1
+    ? parts.slice(0, -1).join(' | ')
+    : leftoverMatch || bills.length > 0 || notes === 'Customer advance' || notes === 'Supplier advance'
+      ? ''
+      : notes;
+  return {
+    added,
+    leftover,
+    closedDue: Math.max(0, added - leftover),
+    bills,
+    remark,
+  };
+};
+
 export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
   const navigate = useNavigate();
   const isCustomer = kind === 'customer';
@@ -290,6 +324,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   const isCustomer = kind === 'customer';
   const { openBill, billModal } = useBillDetail();
   const [account, setAccount] = useState<Account | null>(null);
+  const [advanceRow, setAdvanceRow] = useState<TimelineRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [entryType, setEntryType] = useState('COLLECTION');
   const [amount, setAmount] = useState('');
@@ -367,15 +402,15 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   };
 
   const remaining = useMemo(() => {
-    if (entryType !== 'COLLECTION') return 0;
+    if (entryType !== 'COLLECTION' && !(isCustomer && entryType === 'ADVANCE')) return 0;
     const cash = parseFloat(cashPaid) || 0;
     const bank = parseFloat(bankPaid) || 0;
     const paid = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
     return Math.max(0, (account?.balance || 0) - paid);
-  }, [entryType, cashPaid, bankPaid, payMode, account]);
+  }, [isCustomer, entryType, cashPaid, bankPaid, payMode, account]);
 
   const collectSplit = useMemo(() => {
-    if (!isCustomer || entryType !== 'COLLECTION') return [];
+    if (!isCustomer || (entryType !== 'COLLECTION' && entryType !== 'ADVANCE')) return [];
     const cash = parseFloat(cashPaid) || 0;
     const bank = parseFloat(bankPaid) || 0;
     let left = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
@@ -399,6 +434,14 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
     return rows;
   }, [isCustomer, entryType, cashPaid, bankPaid, payMode, account]);
 
+  const advanceLeftover = useMemo(() => {
+    if (!isCustomer || entryType !== 'ADVANCE') return 0;
+    const cash = parseFloat(cashPaid) || 0;
+    const bank = parseFloat(bankPaid) || 0;
+    const paid = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
+    return Math.max(0, paid - (account?.balance || 0));
+  }, [isCustomer, entryType, cashPaid, bankPaid, payMode, account]);
+
   const advBalanceByIndex = useMemo(() => {
     const rows = account?.timeline || [];
     const order = rows.map((row, index) => ({ row, index }));
@@ -417,7 +460,9 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         const used = Number(row.advanceUsed) || 0;
         adv = Math.max(0, adv - used + Math.max(0, paid - payable));
       } else if (type === 'ADVANCE') {
-        adv += Number(row.amount) || Number(row.paid) || 0;
+        const amt = Number(row.amount) || Number(row.paid) || 0;
+        const leftover = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
+        adv += leftover ? Math.max(0, Number(leftover[1]) || 0) : amt;
       }
       byIndex[index] = adv;
     });
@@ -475,7 +520,8 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
       if (saved.entryType === 'COLLECTION') {
         toast.success(`Remaining balance: ${fmtAmt(saved.newBalance, isCustomer)}`);
       } else if (saved.entryType === 'ADVANCE') {
-        toast.success(`Total advance: ${fmtAmt(saved.newAdvance, isCustomer)}`);
+        const dueLeft = saved.newBalance != null ? ` Remaining due: ${fmtAmt(saved.newBalance, isCustomer)}.` : '';
+        toast.success(`Total advance: ${fmtAmt(saved.newAdvance, isCustomer)}.${dueLeft}`);
       } else {
         toast.success(`Account balance: ${fmtAmt(saved.newBalance, isCustomer)}`);
       }
@@ -521,7 +567,6 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         </div>
       </div>
       <div className="crd-layout">
-        <div className="crd-left">
           <div className="crd-stats">
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">{isCustomer ? 'Total Bills' : 'Total Purchases'}</div>
@@ -536,10 +581,10 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               <div className={`crd-stat-v ${account.balance > 0 ? 'due' : 'ok'}`}>{fmtAmt(account.balance, isCustomer)}</div>
             </div>
           </div>
-          <div className="mst-card">
+          <div className="mst-card crd-bills">
             <div className="mst-card-h">
               <span>Transactions</span>
-              {isCustomer && <span className="mst-note">Click a bill to view details and photos</span>}
+              {isCustomer && <span className="mst-note">Click a bill or advance to view details</span>}
             </div>
             <div className="mst-table-wrap">
               <table className="mst-table">
@@ -579,17 +624,29 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                       const label =
                         type === 'COLLECTION' && !isCustomer ? 'PAYMENT'
                           : type.replace('_', ' ');
-                      const canOpen = isCustomer && type === 'BILL' && !!(row.docNo || '').trim();
+                      const canOpenBill = isCustomer && type === 'BILL' && !!(row.docNo || '').trim();
+                      const canOpenAdvance = isCustomer && type === 'ADVANCE';
+                      const clickable = canOpenBill || canOpenAdvance;
+                      const advanceInfo = type === 'ADVANCE' ? parseAdvanceDetail(row) : null;
                       return (
                         <tr
                           key={`${type}-${i}-${row.date}-${row.time}`}
-                          className={`${rowClass}${canOpen ? ' mst-click-row' : ''}`}
-                          onClick={() => canOpen && openBill(row.docNo)}
+                          className={`${rowClass}${clickable ? ' mst-click-row' : ''}`}
+                          onClick={() => {
+                            if (canOpenAdvance) setAdvanceRow(row);
+                            else if (canOpenBill) openBill(row.docNo);
+                          }}
                         >
                           <td>{i + 1}</td>
                           <td><span className={`crd-badge ${badge}`}>{label}</span></td>
                           <td>
-                            {row.docNo || row.notes
+                            {type === 'ADVANCE' ? (
+                              <span style={{ fontWeight: 600, fontSize: 12 }}>
+                                {advanceInfo && advanceInfo.bills.length > 0
+                                  ? `${advanceInfo.bills.length} bill${advanceInfo.bills.length > 1 ? 's' : ''} closed`
+                                  : 'Advance added'}
+                              </span>
+                            ) : row.docNo || row.notes
                               ? <span style={{ fontWeight: row.docNo ? 600 : 400, fontSize: row.docNo ? undefined : 11 }}>{row.docNo || row.notes}</span>
                               : <span style={{ opacity: 0.35 }}>—</span>}
                           </td>
@@ -621,7 +678,6 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               </table>
             </div>
           </div>
-        </div>
         <div className="crd-right">
           <div className="mst-card">
             <div className="mst-card-h">Account Entry</div>
@@ -637,6 +693,11 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               {!canCollect && (
                 <div className="crd-hint">
                   <i className="fas fa-info-circle" /> No account balance due. You cannot collect payment until there is a due balance.
+                </div>
+              )}
+              {isCustomer && entryType === 'ADVANCE' && canCollect && (
+                <div className="crd-hint">
+                  <i className="fas fa-info-circle" /> Customer has due. This wt will close oldest bills first; leftover is saved as advance.
                 </div>
               )}
               <div className="mst-fg">
@@ -714,19 +775,29 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
-              {entryType === 'COLLECTION' && (
+              {(entryType === 'COLLECTION' || (isCustomer && entryType === 'ADVANCE')) && (
                 <div className="mst-fg">
-                  <label>{isCustomer ? 'Remaining balance wt' : 'Remaining Balance'}</label>
+                  <label>{isCustomer ? 'Remaining due wt' : 'Remaining Balance'}</label>
                   <input className="mst-inp crd-remain" readOnly value={remaining.toFixed(digits)} />
                 </div>
               )}
-              {isCustomer && entryType === 'COLLECTION' && collectSplit.length > 0 && (
+              {isCustomer && entryType === 'ADVANCE' && (
+                <div className="mst-fg">
+                  <label>Leftover to advance</label>
+                  <input className="mst-inp crd-remain" readOnly value={advanceLeftover.toFixed(digits)} />
+                </div>
+              )}
+              {isCustomer && (entryType === 'COLLECTION' || entryType === 'ADVANCE') && collectSplit.length > 0 && (
                 <div className="crd-split">
-                  <div className="crd-split-h">Will apply to oldest unpaid bills first</div>
+                  <div className="crd-split-h">
+                    {entryType === 'ADVANCE'
+                      ? 'Due bills will close first; leftover goes to advance'
+                      : 'Will apply to oldest unpaid bills first'}
+                  </div>
                   {collectSplit.map((row) => (
                     <div key={row.docNo} className="crd-split-row">
                       <span>{row.docNo}</span>
-                      <span>collect {row.take.toFixed(3)}</span>
+                      <span>close {row.take.toFixed(3)}</span>
                       <span className={row.left > 0.0005 ? 'due' : 'ok'}>left {row.left.toFixed(3)}</span>
                     </div>
                   ))}
@@ -742,6 +813,79 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
           </div>
         </div>
       </div>
+      {advanceRow && (() => {
+        const info = parseAdvanceDetail(advanceRow);
+        return (
+          <div className="crd-modal" onClick={() => setAdvanceRow(null)}>
+            <div className="crd-modal-box crd-adv-box" onClick={(e) => e.stopPropagation()}>
+              <div className="crd-modal-h">
+                <div>
+                  <div style={{ fontWeight: 800 }}>
+                    <i className="fas fa-coins" style={{ color: '#16a34a', marginRight: 8 }} />
+                    Advance details
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
+                    {advanceRow.date}{advanceRow.time ? ` · ${advanceRow.time}` : ''}
+                    {advanceRow.userName ? ` · ${advanceRow.userName}` : ''}
+                  </div>
+                </div>
+                <button className="mst-icon-btn" type="button" onClick={() => setAdvanceRow(null)}>&times;</button>
+              </div>
+              <div className="crd-modal-body crd-adv-detail">
+                <div className="crd-adv-kpis">
+                  <div className="crd-adv-kpi">
+                    <div className="l">Added wt</div>
+                    <div className="v">{wt(info.added)} g</div>
+                  </div>
+                  <div className="crd-adv-kpi due">
+                    <div className="l">Due collected</div>
+                    <div className="v">{wt(info.closedDue)} g</div>
+                  </div>
+                  <div className="crd-adv-kpi plus">
+                    <div className="l">Advance added</div>
+                    <div className="v">{wt(info.leftover)} g</div>
+                  </div>
+                </div>
+                {info.remark ? <div className="crd-adv-remark">{info.remark}</div> : null}
+                <div className="crd-split-h">Bills due collected</div>
+                {info.bills.length === 0 ? (
+                  <div className="crd-adv-empty">
+                    {info.closedDue > 0.0005
+                      ? 'Due was closed from account balance. No bill rows were applied.'
+                      : 'No due bills. Full amount was added as advance.'}
+                  </div>
+                ) : (
+                  <table className="mst-table crd-adv-bills">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Bill No</th>
+                        <th className="num">Collected wt</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {info.bills.map((bill, i) => (
+                        <tr
+                          key={`${bill.docNo}-${i}`}
+                          className="mst-click-row"
+                          onClick={() => openBill(bill.docNo)}
+                        >
+                          <td>{i + 1}</td>
+                          <td style={{ fontWeight: 700 }}>{bill.docNo}</td>
+                          <td className="num">{wt(bill.take)} g</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                <div className="crd-adv-foot">
+                  Leftover after closing due: <strong>{wt(info.leftover)} g</strong> added as advance
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {billModal}
     </div>
   );

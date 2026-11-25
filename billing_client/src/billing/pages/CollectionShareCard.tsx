@@ -42,10 +42,12 @@ type PrintShare = {
 
 export const CollectionShareCard: React.FC<{
   bills: CollectionBill[];
+  accountDue?: number;
+  accountAdv?: number;
   shopName?: string;
   shopAddress?: string;
   onClose: () => void;
-}> = ({ bills, shopName, shopAddress, onClose }) => {
+}> = ({ bills, accountDue = 0, accountAdv = 0, shopName, shopAddress, onClose }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState({ scale: 1, height: 0 });
@@ -259,6 +261,11 @@ export const CollectionShareCard: React.FC<{
                 <Step label="Collected wt" value={`${wt(totals.paid)} g`} />
                 <Step label="Balance wt" value={`${wt(totals.due)} g`} tone={totals.due > 0.0005 ? 'minus' : 'plus'} />
                 <Step label="Advance wt" value={`${wt(totals.advance)} g`} tone="plus" />
+              </div>
+              <div className="gold-share-totals gold-share-steps">
+                <div className="gold-share-summary-h">Customer details</div>
+                <Step label="Current due" value={`${wt(accountDue)} g`} tone={accountDue > 0.0005 ? 'minus' : undefined} />
+                <Step label="Current Advance" value={`${wt(accountAdv)} g`} tone="plus" />
               </div>
               <div className="gold-share-thanks">Thank you for choosing {shop}</div>
             </div>

@@ -356,22 +356,50 @@ public class CreditService {
         int payType = nzInt(request.getPayType(), 0);
         double currentAdvance = toDouble(acc.get("advance"));
         double currentBalance = toDouble(acc.get("balance"));
-        double newAdvance = currentAdvance + amount;
+        double leftover = amount;
+        double newBalance = currentBalance;
+        String appliedNotes = "";
+        if (customerId != null && customerId > 0) {
+            BillApplyResult applied = applyCollectionToBills(customerId, amount, cash, bank, payMode, payType, uid);
+            leftover = round3(Math.max(0, amount - applied.applied()));
+            double dueAfterBills = round3(Math.max(0, currentBalance - applied.applied()));
+            double closeOld = round3(Math.min(leftover, dueAfterBills));
+            leftover = round3(Math.max(0, leftover - closeOld));
+            newBalance = round3(Math.max(0, currentBalance - applied.applied() - closeOld));
+            appliedNotes = applied.notes();
+        }
+        double newAdvance = round3(currentAdvance + leftover);
         String notes = noteOr(request.getNotes(), defaultNote);
+        if (customerId != null && customerId > 0 && leftover + 0.0005 < amount) {
+            String leftNote = "leftover " + String.format("%.3f", leftover);
+            String closeNote = appliedNotes.isEmpty() ? leftNote : appliedNotes + "; " + leftNote;
+            notes = notes.isEmpty() || notes.equals(defaultNote) ? closeNote : notes + " | " + closeNote;
+        } else if (!appliedNotes.isEmpty()) {
+            notes = notes.isEmpty() || notes.equals(defaultNote) ? appliedNotes : notes + " | " + appliedNotes;
+        }
+        final String savedNotes = notes;
+        final double savedBalance = newBalance;
         long dueId = insertDue(insertSql, ps -> {
             ps.setLong(1, partyId);
             ps.setDouble(2, amount);
             ps.setDouble(3, cash);
             ps.setDouble(4, bank);
-            ps.setDouble(5, currentBalance);
+            ps.setDouble(5, savedBalance);
             ps.setInt(6, payMode);
             ps.setInt(7, payType);
-            ps.setString(8, notes);
+            ps.setString(8, savedNotes);
             ps.setLong(9, uid);
         });
         insertLedger(ledgerType, dueId, customerId, supplierId, payMode, amount, cash, bank, payType, uid);
-        jdbcTemplate.update(updateSql, newAdvance, partyId);
-        return result("ADVANCE", currentBalance, newAdvance);
+        if (customerId != null && customerId > 0) {
+            jdbcTemplate.update(
+                    "UPDATE customer_account SET advance = ?, balance = ? WHERE customer_id = ?",
+                    newAdvance, newBalance, partyId
+            );
+        } else {
+            jdbcTemplate.update(updateSql, newAdvance, partyId);
+        }
+        return result("ADVANCE", newBalance, newAdvance);
     }
 
     private AccountEntryResult collection(Long customerId, Long supplierId, AccountEntryRequest request, Long uid,
@@ -392,9 +420,9 @@ public class CreditService {
         int payType = nzInt(request.getPayType(), 0);
         String notes = noteOr(request.getNotes(), "");
         if (customerId != null && customerId > 0) {
-            String applied = applyCollectionToBills(customerId, amount, cash, bank, payMode, payType, uid);
-            if (!applied.isEmpty()) {
-                notes = notes.isEmpty() ? applied : notes + " | " + applied;
+            BillApplyResult applied = applyCollectionToBills(customerId, amount, cash, bank, payMode, payType, uid);
+            if (!applied.notes().isEmpty()) {
+                notes = notes.isEmpty() ? applied.notes() : notes + " | " + applied.notes();
             }
         }
         final String savedNotes = notes.isEmpty() ? null : notes;
@@ -415,7 +443,7 @@ public class CreditService {
     }
 
     /** Apply collected wt to unpaid bills oldest first, so each bill's remaining balance is known. */
-    private String applyCollectionToBills(long customerId, double amount, double cash, double bank, int payMode, int payType, Long uid) {
+    private BillApplyResult applyCollectionToBills(long customerId, double amount, double cash, double bank, int payMode, int payType, Long uid) {
         List<Map<String, Object>> bills = jdbcTemplate.queryForList(
                 "SELECT id, bill_display, IFNULL(payable, 0) AS payable, IFNULL(paid, 0) AS paid " +
                         "FROM prod_bill WHERE customerId = ? AND IFNULL(is_cancelled, 0) = 0 " +
@@ -471,7 +499,7 @@ public class CreditService {
             String billNo = bill.get("bill_display") == null ? "#" + billId : String.valueOf(bill.get("bill_display"));
             applied.add(billNo + " " + String.format("%.3f", apply));
         }
-        return applied.isEmpty() ? "" : String.join(", ", applied);
+        return new BillApplyResult(round3(Math.max(0, amount - remaining)), applied.isEmpty() ? "" : String.join(", ", applied));
     }
 
     private Double lockBalance(String sql, Long partyId) {
@@ -662,4 +690,6 @@ public class CreditService {
     private interface SqlBinder {
         void bind(PreparedStatement ps) throws java.sql.SQLException;
     }
+
+    private record BillApplyResult(double applied, String notes) {}
 }

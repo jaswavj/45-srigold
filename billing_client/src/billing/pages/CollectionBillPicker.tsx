@@ -99,7 +99,7 @@ const groupBills = (rows: ListRow[]): CollectionBill[] => {
 export const CollectionBillPicker: React.FC<{
   customer?: CollectionCustomer;
   onClose: () => void;
-  onProceed: (bills: CollectionBill[]) => void;
+  onProceed: (bills: CollectionBill[], account: { due: number; advance: number }) => void;
 }> = ({ customer, onClose, onProceed }) => {
   const [from, setFrom] = useState(monthStart);
   const [to, setTo] = useState(today);
@@ -107,10 +107,14 @@ export const CollectionBillPicker: React.FC<{
   const [bills, setBills] = useState<CollectionBill[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
+  const [accountDue, setAccountDue] = useState(0);
+  const [accountAdv, setAccountAdv] = useState(0);
 
   const load = useCallback(async (start = from, end = to) => {
     if (!customer?.id) {
       setBills([]);
+      setAccountDue(0);
+      setAccountAdv(0);
       return;
     }
     setLoading(true);
@@ -121,6 +125,8 @@ export const CollectionBillPicker: React.FC<{
       ]);
       const rows: ListRow[] = Array.isArray(listRes?.data) ? listRes.data : [];
       const account = creditData<{
+        advance?: number;
+        balance?: number;
         timeline?: {
           type?: string;
           docNo?: string;
@@ -131,6 +137,8 @@ export const CollectionBillPicker: React.FC<{
           notes?: string;
         }[];
       }>(accRes);
+      setAccountDue(Math.max(0, Number(account.balance) || 0));
+      setAccountAdv(Math.max(0, Number(account.advance) || 0));
       const billNos = new Set(
         (account.timeline || [])
           .filter((row) => (row.type || '').toUpperCase() === 'BILL')
@@ -146,19 +154,20 @@ export const CollectionBillPicker: React.FC<{
         .filter((row) => (row.type || '').toUpperCase() === 'ADVANCE' && inRange(row.date))
         .map((row, i) => {
           const amt = Number(row.amount) || Number(row.paid) || 0;
-          const cashPaid = Number(row.paid) || amt;
+          const leftoverMatch = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
+          const leftover = leftoverMatch ? Math.max(0, Number(leftoverMatch[1]) || 0) : amt;
           return {
             billDisplay: `ADV:${row.date || ''}|${row.time || ''}|${i}`,
             date: row.date || '',
             time: row.time || '',
             customerName: customer.name,
             phone: customer.phone,
-            itemName: (row.notes || '').trim() || 'Advance',
+            itemName: leftover.toFixed(3),
             itemCount: 1,
             totalWt: 0,
-            paid: amt,
+            paid: leftover,
             payable: 0,
-            cash: cashPaid,
+            cash: leftover,
             advanceUsed: 0,
             kind: 'advance',
           };
@@ -171,6 +180,8 @@ export const CollectionBillPicker: React.FC<{
     } catch (err: any) {
       toast.error(err?.response?.data?.data?.error || err?.message || 'Could not load bills');
       setBills([]);
+      setAccountDue(0);
+      setAccountAdv(0);
     } finally {
       setLoading(false);
     }
@@ -218,7 +229,7 @@ export const CollectionBillPicker: React.FC<{
       toast.warning('Select at least one bill or advance');
       return;
     }
-    onProceed(picked);
+    onProceed(picked, { due: accountDue, advance: accountAdv });
   };
 
   const dueOrAdv = (bill: CollectionBill) => {
@@ -340,6 +351,16 @@ export const CollectionBillPicker: React.FC<{
               </>
             )}
           </div>
+          <div className="gold-coll-account">
+            <div>
+              <span>Current due</span>
+              <b className={accountDue > 0.0005 ? 'due' : ''}>{accountDue.toFixed(3)} g</b>
+            </div>
+            <div>
+              <span>Current Advance</span>
+              <b className={accountAdv > 0.0005 ? 'adv' : ''}>{accountAdv.toFixed(3)} g</b>
+            </div>
+          </div>
           <div className="gold-coll-acts">
             <button className="mst-btn" type="button" onClick={onClose}>Cancel</button>
             <button className="mst-btn mst-btn-primary" type="button" onClick={proceed}>
@@ -443,6 +464,7 @@ export const CollectionBillButton: React.FC<{
   const [chosen, setChosen] = useState<CollectionCustomer | null>(customer || null);
   const [open, setOpen] = useState(false);
   const [share, setShare] = useState<CollectionBill[] | null>(null);
+  const [account, setAccount] = useState({ due: 0, advance: 0 });
 
   const start = () => {
     if (customer?.id) {
@@ -459,6 +481,7 @@ export const CollectionBillButton: React.FC<{
     setOpen(false);
     setChosen(null);
     setShare(null);
+    setAccount({ due: 0, advance: 0 });
   };
 
   return (
@@ -480,13 +503,21 @@ export const CollectionBillButton: React.FC<{
         <CollectionBillPicker
           customer={chosen}
           onClose={stop}
-          onProceed={(bills) => {
+          onProceed={(bills, acc) => {
             setOpen(false);
             setShare(bills);
+            setAccount(acc);
           }}
         />
       ) : null}
-      {share ? <CollectionShareCard bills={share} onClose={stop} /> : null}
+      {share ? (
+        <CollectionShareCard
+          bills={share}
+          accountDue={account.due}
+          accountAdv={account.advance}
+          onClose={stop}
+        />
+      ) : null}
     </>
   );
 };
