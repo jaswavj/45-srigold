@@ -794,3 +794,22 @@ html[data-theme="dark"] .crd-split {
   border-color: var(--color-border);
   color: var(--color-text);
 }
+
+.crd-wa-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-left: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: #16a34a;
+  color: #fff;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.crd-wa-btn:hover {
+  background: #15803d;
+}

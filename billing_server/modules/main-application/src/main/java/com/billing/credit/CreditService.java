@@ -405,7 +405,19 @@ public class CreditService {
     private AccountEntryResult collection(Long customerId, Long supplierId, AccountEntryRequest request, Long uid,
                                           String lockSql, String insertSql, String updateSql, int ledgerType, String emptyMsg) {
         long partyId = customerId > 0 ? customerId : supplierId;
-        double currentBalance = lockBalance(lockSql, partyId);
+        boolean customer = customerId != null && customerId > 0;
+        double currentBalance;
+        double currentAdvance = 0;
+        if (customer) {
+            Map<String, Object> acc = lockAdvance(
+                    "SELECT advance, balance FROM customer_account WHERE customer_id = ? FOR UPDATE",
+                    partyId
+            );
+            currentBalance = toDouble(acc.get("balance"));
+            currentAdvance = toDouble(acc.get("advance"));
+        } else {
+            currentBalance = lockBalance(lockSql, partyId);
+        }
         if (currentBalance <= 0) {
             throw new RuntimeException(emptyMsg);
         }
@@ -415,17 +427,24 @@ public class CreditService {
         if (amount <= 0) {
             throw new RuntimeException("Payment amount must be greater than zero.");
         }
-        double newBalance = Math.max(0, round3(currentBalance - amount));
+        double appliedDue = round3(Math.min(amount, currentBalance));
+        double leftover = round3(Math.max(0, amount - appliedDue));
+        double newBalance = round3(Math.max(0, currentBalance - appliedDue));
+        double newAdvance = round3(currentAdvance + leftover);
         int payMode = nzInt(request.getPayMode(), 1);
         int payType = nzInt(request.getPayType(), 0);
         String notes = noteOr(request.getNotes(), "");
-        if (customerId != null && customerId > 0) {
+        if (customer) {
             BillApplyResult applied = applyCollectionToBills(customerId, amount, cash, bank, payMode, payType, uid);
             if (!applied.notes().isEmpty()) {
                 notes = notes.isEmpty() ? applied.notes() : notes + " | " + applied.notes();
             }
+            if (leftover > 0.0005) {
+                String leftNote = "leftover " + String.format("%.3f", leftover);
+                notes = notes == null || notes.isBlank() ? leftNote : notes + "; " + leftNote;
+            }
         }
-        final String savedNotes = notes.isEmpty() ? null : notes;
+        final String savedNotes = notes == null || notes.isBlank() ? null : notes;
         long dueId = insertDue(insertSql, ps -> {
             ps.setLong(1, partyId);
             ps.setDouble(2, amount);
@@ -438,6 +457,13 @@ public class CreditService {
             ps.setLong(9, uid);
         });
         insertLedger(ledgerType, dueId, customerId, supplierId, payMode, amount, cash, bank, payType, uid);
+        if (customer) {
+            jdbcTemplate.update(
+                    "UPDATE customer_account SET advance = ?, balance = ? WHERE customer_id = ?",
+                    newAdvance, newBalance, partyId
+            );
+            return result("COLLECTION", newBalance, newAdvance);
+        }
         jdbcTemplate.update(updateSql, newBalance, partyId);
         return result("COLLECTION", newBalance, null);
     }

@@ -495,12 +495,14 @@
   gap: 8px;
 }
 
-.gold-share-panel-wide .gold-share-acts {
+.gold-share-panel-wide .gold-share-acts,
+.gold-share-acts-3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
 
 @media (max-width: 720px) {
-  .gold-share-panel-wide .gold-share-acts {
+  .gold-share-panel-wide .gold-share-acts,
+  .gold-share-acts-3 {
     grid-template-columns: 1fr;
   }
 }

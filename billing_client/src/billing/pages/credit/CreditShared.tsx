@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { creditApi, creditData, creditError } from '../../../api/credit/credit-api-service';
 import { useBillDetail } from '../account-reports/BillDetailModal';
+import CreditShareCard, { CreditShare } from './CreditShareCard';
 import '../master/Master.css';
 import './Credit.css';
 
@@ -334,6 +335,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   const [bankPaid, setBankPaid] = useState('');
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
+  const [share, setShare] = useState<CreditShare | null>(null);
 
   const load = async () => {
     try {
@@ -435,7 +437,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   }, [isCustomer, entryType, cashPaid, bankPaid, payMode, account]);
 
   const advanceLeftover = useMemo(() => {
-    if (!isCustomer || entryType !== 'ADVANCE') return 0;
+    if (!isCustomer || (entryType !== 'ADVANCE' && entryType !== 'COLLECTION')) return 0;
     const cash = parseFloat(cashPaid) || 0;
     const bank = parseFloat(bankPaid) || 0;
     const paid = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
@@ -463,6 +465,9 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         const amt = Number(row.amount) || Number(row.paid) || 0;
         const leftover = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
         adv += leftover ? Math.max(0, Number(leftover[1]) || 0) : amt;
+      } else if (type === 'COLLECTION') {
+        const leftover = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
+        if (leftover) adv += Math.max(0, Number(leftover[1]) || 0);
       }
       byIndex[index] = adv;
     });
@@ -518,12 +523,35 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         : await creditApi.saveSupplierEntry(id, payload);
       const saved = creditData<{ entryType: string; newBalance?: number; newAdvance?: number }>(res);
       if (saved.entryType === 'COLLECTION') {
-        toast.success(`Remaining balance: ${fmtAmt(saved.newBalance, isCustomer)}`);
+        const advNote = isCustomer && (saved.newAdvance || 0) > 0.0005
+          ? ` Advance: ${fmtAmt(saved.newAdvance, true)}.`
+          : '';
+        toast.success(`Remaining due: ${fmtAmt(saved.newBalance, isCustomer)}.${advNote}`);
       } else if (saved.entryType === 'ADVANCE') {
         const dueLeft = saved.newBalance != null ? ` Remaining due: ${fmtAmt(saved.newBalance, isCustomer)}.` : '';
         toast.success(`Total advance: ${fmtAmt(saved.newAdvance, isCustomer)}.${dueLeft}`);
       } else {
         toast.success(`Account balance: ${fmtAmt(saved.newBalance, isCustomer)}`);
+      }
+      if (isCustomer && (saved.entryType === 'COLLECTION' || saved.entryType === 'ADVANCE')) {
+        const prevDue = Number(account?.balance) || 0;
+        const prevAdv = Number(account?.advance) || 0;
+        const collectedDue = Math.min(amt, prevDue);
+        const collectedAdv = Math.max(0, amt - collectedDue);
+        const newDue = Number(saved.newBalance) || 0;
+        const newAdv = saved.newAdvance != null ? Number(saved.newAdvance) : prevAdv + collectedAdv;
+        setShare({
+          kind: saved.entryType,
+          customerName: account?.name || '',
+          phone: account?.phone || '',
+          date: new Date().toISOString().slice(0, 10),
+          previousDue: prevDue,
+          collectedDue,
+          balanceDue: newDue,
+          previousAdvance: prevAdv,
+          collectedAdvance: collectedAdv,
+          balanceAdvance: newAdv,
+        });
       }
       await load();
     } catch (err) {
@@ -628,6 +656,44 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                       const canOpenAdvance = isCustomer && type === 'ADVANCE';
                       const clickable = canOpenBill || canOpenAdvance;
                       const advanceInfo = type === 'ADVANCE' ? parseAdvanceDetail(row) : null;
+                      const canShare = isCustomer && (type === 'COLLECTION' || type === 'ADVANCE');
+                      const openShare = (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        const collected = Number(row.paid) || Number(row.amount) || 0;
+                        const balanceDue = Number(row.pending) || 0;
+                        const balanceAdv = advBalanceByIndex[i] || 0;
+                        if (type === 'COLLECTION') {
+                          const leftoverMatch = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
+                          const leftover = leftoverMatch ? Math.max(0, Number(leftoverMatch[1]) || 0) : 0;
+                          const collectedDue = Math.max(0, collected - leftover);
+                          setShare({
+                            kind: 'COLLECTION',
+                            customerName: account.name,
+                            phone: account.phone,
+                            date: row.date,
+                            previousDue: collectedDue + balanceDue,
+                            collectedDue,
+                            balanceDue,
+                            previousAdvance: Math.max(0, balanceAdv - leftover),
+                            collectedAdvance: leftover,
+                            balanceAdvance: balanceAdv,
+                          });
+                          return;
+                        }
+                        const info = parseAdvanceDetail(row);
+                        setShare({
+                          kind: 'ADVANCE',
+                          customerName: account.name,
+                          phone: account.phone,
+                          date: row.date,
+                          previousDue: info.closedDue + balanceDue,
+                          collectedDue: info.closedDue,
+                          balanceDue,
+                          previousAdvance: Math.max(0, balanceAdv - info.leftover),
+                          collectedAdvance: info.leftover,
+                          balanceAdvance: balanceAdv,
+                        });
+                      };
                       return (
                         <tr
                           key={`${type}-${i}-${row.date}-${row.time}`}
@@ -638,7 +704,20 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                           }}
                         >
                           <td>{i + 1}</td>
-                          <td><span className={`crd-badge ${badge}`}>{label}</span></td>
+                          <td>
+                            <span className={`crd-badge ${badge}`}>{label}</span>
+                            {canShare ? (
+                              <button
+                                className="crd-wa-btn"
+                                type="button"
+                                title="WhatsApp / JPEG"
+                                aria-label="WhatsApp"
+                                onClick={openShare}
+                              >
+                                <i className="fab fa-whatsapp" />
+                              </button>
+                            ) : null}
+                          </td>
                           <td>
                             {type === 'ADVANCE' ? (
                               <span style={{ fontWeight: 600, fontSize: 12 }}>
@@ -781,7 +860,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                   <input className="mst-inp crd-remain" readOnly value={remaining.toFixed(digits)} />
                 </div>
               )}
-              {isCustomer && entryType === 'ADVANCE' && (
+              {isCustomer && (entryType === 'ADVANCE' || entryType === 'COLLECTION') && (
                 <div className="mst-fg">
                   <label>Leftover to advance</label>
                   <input className="mst-inp crd-remain" readOnly value={advanceLeftover.toFixed(digits)} />
@@ -790,7 +869,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               {isCustomer && (entryType === 'COLLECTION' || entryType === 'ADVANCE') && collectSplit.length > 0 && (
                 <div className="crd-split">
                   <div className="crd-split-h">
-                    {entryType === 'ADVANCE'
+                    {entryType === 'ADVANCE' || advanceLeftover > 0.0005
                       ? 'Due bills will close first; leftover goes to advance'
                       : 'Will apply to oldest unpaid bills first'}
                   </div>
@@ -887,6 +966,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         );
       })()}
       {billModal}
+      {share ? <CreditShareCard share={share} onClose={() => setShare(null)} /> : null}
     </div>
   );
 };
