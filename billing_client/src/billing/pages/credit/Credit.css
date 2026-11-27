@@ -486,6 +486,19 @@
   color: #16a34a;
 }
 
+.crd-modal-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.crd-modal-acts .gold-share-wa {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+}
+
 .crd-modal {
   position: fixed;
   inset: 0;

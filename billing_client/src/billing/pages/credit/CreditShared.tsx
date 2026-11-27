@@ -88,6 +88,51 @@ const parseAdvanceDetail = (row: TimelineRow) => {
   };
 };
 
+const leftoverOf = (row: TimelineRow) => {
+  const match = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
+  return match ? Math.max(0, Number(match[1]) || 0) : 0;
+};
+
+const shareFromTimeline = (
+  account: Account,
+  row: TimelineRow,
+  index: number,
+  advBalance: number,
+): CreditShare => {
+  const type = (row.type || '').toUpperCase();
+  const collected = Number(row.paid) || Number(row.amount) || 0;
+  const balanceDue = Number(row.pending) || 0;
+  if (type === 'COLLECTION') {
+    const leftover = leftoverOf(row);
+    const collectedDue = Math.max(0, collected - leftover);
+    return {
+      kind: 'COLLECTION',
+      customerName: account.name,
+      phone: account.phone,
+      date: row.date,
+      previousDue: collectedDue + balanceDue,
+      collectedDue,
+      balanceDue,
+      previousAdvance: Math.max(0, advBalance - leftover),
+      collectedAdvance: leftover,
+      balanceAdvance: advBalance,
+    };
+  }
+  const info = parseAdvanceDetail(row);
+  return {
+    kind: 'ADVANCE',
+    customerName: account.name,
+    phone: account.phone,
+    date: row.date,
+    previousDue: info.closedDue + balanceDue,
+    collectedDue: info.closedDue,
+    balanceDue,
+    previousAdvance: Math.max(0, advBalance - info.leftover),
+    collectedAdvance: info.leftover,
+    balanceAdvance: advBalance,
+  };
+};
+
 export const CreditIndex: React.FC<{ kind: PartyKind }> = ({ kind }) => {
   const navigate = useNavigate();
   const isCustomer = kind === 'customer';
@@ -325,7 +370,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   const isCustomer = kind === 'customer';
   const { openBill, billModal } = useBillDetail();
   const [account, setAccount] = useState<Account | null>(null);
-  const [advanceRow, setAdvanceRow] = useState<TimelineRow | null>(null);
+  const [detail, setDetail] = useState<{ row: TimelineRow; index: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [entryType, setEntryType] = useState('COLLECTION');
   const [amount, setAmount] = useState('');
@@ -612,7 +657,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
           <div className="mst-card crd-bills">
             <div className="mst-card-h">
               <span>Transactions</span>
-              {isCustomer && <span className="mst-note">Click a bill or advance to view details</span>}
+              {isCustomer && <span className="mst-note">Click a bill, collection or advance to view details</span>}
             </div>
             <div className="mst-table-wrap">
               <table className="mst-table">
@@ -653,60 +698,26 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                         type === 'COLLECTION' && !isCustomer ? 'PAYMENT'
                           : type.replace('_', ' ');
                       const canOpenBill = isCustomer && type === 'BILL' && !!(row.docNo || '').trim();
-                      const canOpenAdvance = isCustomer && type === 'ADVANCE';
-                      const clickable = canOpenBill || canOpenAdvance;
+                      const canOpenEntry = isCustomer && (type === 'ADVANCE' || type === 'COLLECTION');
+                      const clickable = canOpenBill || canOpenEntry;
                       const advanceInfo = type === 'ADVANCE' ? parseAdvanceDetail(row) : null;
-                      const canShare = isCustomer && (type === 'COLLECTION' || type === 'ADVANCE');
-                      const openShare = (e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        const collected = Number(row.paid) || Number(row.amount) || 0;
-                        const balanceDue = Number(row.pending) || 0;
-                        const balanceAdv = advBalanceByIndex[i] || 0;
-                        if (type === 'COLLECTION') {
-                          const leftoverMatch = /leftover\s+([0-9]+(?:\.[0-9]+)?)/i.exec(row.notes || '');
-                          const leftover = leftoverMatch ? Math.max(0, Number(leftoverMatch[1]) || 0) : 0;
-                          const collectedDue = Math.max(0, collected - leftover);
-                          setShare({
-                            kind: 'COLLECTION',
-                            customerName: account.name,
-                            phone: account.phone,
-                            date: row.date,
-                            previousDue: collectedDue + balanceDue,
-                            collectedDue,
-                            balanceDue,
-                            previousAdvance: Math.max(0, balanceAdv - leftover),
-                            collectedAdvance: leftover,
-                            balanceAdvance: balanceAdv,
-                          });
-                          return;
-                        }
-                        const info = parseAdvanceDetail(row);
-                        setShare({
-                          kind: 'ADVANCE',
-                          customerName: account.name,
-                          phone: account.phone,
-                          date: row.date,
-                          previousDue: info.closedDue + balanceDue,
-                          collectedDue: info.closedDue,
-                          balanceDue,
-                          previousAdvance: Math.max(0, balanceAdv - info.leftover),
-                          collectedAdvance: info.leftover,
-                          balanceAdvance: balanceAdv,
-                        });
+                      const openShare = (e?: React.MouseEvent) => {
+                        e?.stopPropagation();
+                        setShare(shareFromTimeline(account, row, i, advBalanceByIndex[i] || 0));
                       };
                       return (
                         <tr
                           key={`${type}-${i}-${row.date}-${row.time}`}
                           className={`${rowClass}${clickable ? ' mst-click-row' : ''}`}
                           onClick={() => {
-                            if (canOpenAdvance) setAdvanceRow(row);
+                            if (canOpenEntry) setDetail({ row, index: i });
                             else if (canOpenBill) openBill(row.docNo);
                           }}
                         >
                           <td>{i + 1}</td>
                           <td>
                             <span className={`crd-badge ${badge}`}>{label}</span>
-                            {canShare ? (
+                            {canOpenEntry ? (
                               <button
                                 className="crd-wa-btn"
                                 type="button"
@@ -892,73 +903,119 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
           </div>
         </div>
       </div>
-      {advanceRow && (() => {
-        const info = parseAdvanceDetail(advanceRow);
+      {detail && (() => {
+        const row = detail.row;
+        const type = (row.type || '').toUpperCase();
+        const isAdv = type === 'ADVANCE';
+        const info = isAdv ? parseAdvanceDetail(row) : null;
+        const leftover = leftoverOf(row);
+        const collected = Number(row.paid) || Number(row.amount) || 0;
+        const balanceDue = Number(row.pending) || 0;
+        const collectedDue = isAdv ? info!.closedDue : Math.max(0, collected - leftover);
+        const previousDue = collectedDue + balanceDue;
+        const collectedAdv = isAdv ? info!.leftover : leftover;
+        const openReceipt = () => setShare(shareFromTimeline(account, row, detail.index, advBalanceByIndex[detail.index] || 0));
         return (
-          <div className="crd-modal" onClick={() => setAdvanceRow(null)}>
+          <div className="crd-modal" onClick={() => setDetail(null)}>
             <div className="crd-modal-box crd-adv-box" onClick={(e) => e.stopPropagation()}>
               <div className="crd-modal-h">
                 <div>
                   <div style={{ fontWeight: 800 }}>
-                    <i className="fas fa-coins" style={{ color: '#16a34a', marginRight: 8 }} />
-                    Advance details
+                    <i
+                      className={isAdv ? 'fas fa-coins' : 'fas fa-hand-holding-usd'}
+                      style={{ color: isAdv ? '#16a34a' : '#ea580c', marginRight: 8 }}
+                    />
+                    {isAdv ? 'Advance details' : 'Collection details'}
                   </div>
                   <div style={{ fontSize: 12, opacity: 0.6, marginTop: 2 }}>
-                    {advanceRow.date}{advanceRow.time ? ` · ${advanceRow.time}` : ''}
-                    {advanceRow.userName ? ` · ${advanceRow.userName}` : ''}
+                    {row.date}{row.time ? ` · ${row.time}` : ''}
+                    {row.userName ? ` · ${row.userName}` : ''}
                   </div>
                 </div>
-                <button className="mst-icon-btn" type="button" onClick={() => setAdvanceRow(null)}>&times;</button>
+                <button className="mst-icon-btn" type="button" onClick={() => setDetail(null)}>&times;</button>
               </div>
               <div className="crd-modal-body crd-adv-detail">
-                <div className="crd-adv-kpis">
-                  <div className="crd-adv-kpi">
-                    <div className="l">Added wt</div>
-                    <div className="v">{wt(info.added)} g</div>
-                  </div>
-                  <div className="crd-adv-kpi due">
-                    <div className="l">Due collected</div>
-                    <div className="v">{wt(info.closedDue)} g</div>
-                  </div>
-                  <div className="crd-adv-kpi plus">
-                    <div className="l">Advance added</div>
-                    <div className="v">{wt(info.leftover)} g</div>
-                  </div>
-                </div>
-                {info.remark ? <div className="crd-adv-remark">{info.remark}</div> : null}
-                <div className="crd-split-h">Bills due collected</div>
-                {info.bills.length === 0 ? (
-                  <div className="crd-adv-empty">
-                    {info.closedDue > 0.0005
-                      ? 'Due was closed from account balance. No bill rows were applied.'
-                      : 'No due bills. Full amount was added as advance.'}
+                {isAdv ? (
+                  <div className="crd-adv-kpis">
+                    <div className="crd-adv-kpi">
+                      <div className="l">Added wt</div>
+                      <div className="v">{wt(info!.added)} g</div>
+                    </div>
+                    <div className="crd-adv-kpi due">
+                      <div className="l">Due collected</div>
+                      <div className="v">{wt(info!.closedDue)} g</div>
+                    </div>
+                    <div className="crd-adv-kpi plus">
+                      <div className="l">Advance added</div>
+                      <div className="v">{wt(info!.leftover)} g</div>
+                    </div>
                   </div>
                 ) : (
-                  <table className="mst-table crd-adv-bills">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Bill No</th>
-                        <th className="num">Collected wt</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {info.bills.map((bill, i) => (
-                        <tr
-                          key={`${bill.docNo}-${i}`}
-                          className="mst-click-row"
-                          onClick={() => openBill(bill.docNo)}
-                        >
-                          <td>{i + 1}</td>
-                          <td style={{ fontWeight: 700 }}>{bill.docNo}</td>
-                          <td className="num">{wt(bill.take)} g</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="crd-adv-kpis">
+                    <div className="crd-adv-kpi due">
+                      <div className="l">Previous due</div>
+                      <div className="v">{wt(previousDue)} g</div>
+                    </div>
+                    <div className="crd-adv-kpi">
+                      <div className="l">Due collected</div>
+                      <div className="v">{wt(collectedDue)} g</div>
+                    </div>
+                    <div className="crd-adv-kpi plus">
+                      <div className="l">Advance added</div>
+                      <div className="v">{wt(collectedAdv)} g</div>
+                    </div>
+                  </div>
                 )}
-                <div className="crd-adv-foot">
-                  Leftover after closing due: <strong>{wt(info.leftover)} g</strong> added as advance
+                {isAdv && info?.remark ? <div className="crd-adv-remark">{info.remark}</div> : null}
+                {isAdv ? (
+                  <>
+                    <div className="crd-split-h">Bills due collected</div>
+                    {info!.bills.length === 0 ? (
+                      <div className="crd-adv-empty">
+                        {info!.closedDue > 0.0005
+                          ? 'Due was closed from account balance. No bill rows were applied.'
+                          : 'No due bills. Full amount was added as advance.'}
+                      </div>
+                    ) : (
+                      <table className="mst-table crd-adv-bills">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Bill No</th>
+                            <th className="num">Collected wt</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {info!.bills.map((bill, i) => (
+                            <tr
+                              key={`${bill.docNo}-${i}`}
+                              className="mst-click-row"
+                              onClick={() => openBill(bill.docNo)}
+                            >
+                              <td>{i + 1}</td>
+                              <td style={{ fontWeight: 700 }}>{bill.docNo}</td>
+                              <td className="num">{wt(bill.take)} g</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                    <div className="crd-adv-foot">
+                      Leftover after closing due: <strong>{wt(info!.leftover)} g</strong> added as advance
+                    </div>
+                  </>
+                ) : leftover > 0.0005 ? (
+                  <div className="crd-adv-foot">
+                    Extra collected wt: <strong>{wt(leftover)} g</strong> added as advance
+                  </div>
+                ) : null}
+                <div className="crd-modal-acts">
+                  <button className="mst-btn mst-btn-primary" type="button" onClick={openReceipt}>
+                    Download JPEG
+                  </button>
+                  <button className="mst-btn gold-share-wa" type="button" onClick={openReceipt}>
+                    <i className="fab fa-whatsapp" /> Send WhatsApp
+                  </button>
                 </div>
               </div>
             </div>
